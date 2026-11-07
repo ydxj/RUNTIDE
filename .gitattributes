@@ -1,0 +1,5 @@
+# Keep source files LF in every checkout. On the Windows CI runner git would otherwise
+# convert them to CRLF, and gofmt then reports every Go file as unformatted.
+*.go text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
