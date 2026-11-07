@@ -135,7 +135,8 @@ test('receipt replay pre-flight renders with real data and stays blocked without
   await expect(page.getByText(/Integrity verified/)).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText(/signature unavailable/)).toBeVisible()
   await page.getByRole('button', { name: /Replay pre-flight/ }).click()
-  await expect(page.getByText('Permissions this replay needs')).toBeVisible()
+  // The pre-flight probes the installed tool versions, which can take several seconds on a cold CI runner.
+  await expect(page.getByText('Permissions this replay needs')).toBeVisible({ timeout: 30_000 })
   await expect(page.getByText('Dependencies', { exact: true })).toBeVisible()
   await expect(page.getByText(/project directory containing the recorded source is required/)).toBeVisible()
   await expect(page.getByRole('button', { name: /Review and run replay/ })).toBeDisabled()
