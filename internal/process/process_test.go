@@ -33,7 +33,7 @@ func TestBuildTreeAndFilter(t *testing.T) {
 		{PID: 2, PPID: 1, Name: "child", StartTime: now.Add(time.Second)},
 		{PID: 3, PPID: 2, Name: "grandchild", StartTime: now.Add(2 * time.Second)},
 		{PID: 4, PPID: 99, Name: "orphan", StartTime: now},
-		{PID: 5, PPID: 6, Name: "reused", StartTime: now},          // parent PID started later: PID reuse
+		{PID: 5, PPID: 6, Name: "reused", StartTime: now}, // parent PID started later: PID reuse
 		{PID: 6, PPID: 1, Name: "newer", StartTime: now.Add(time.Hour)},
 	}
 	roots := BuildTree(ps)
@@ -63,8 +63,16 @@ func TestSnapshotFindsSelf(t *testing.T) {
 	assert.Equal(t, ProtProtected, self.Protection)
 }
 
+// TestHelperSleep is a re-exec target: it only sleeps when asked to.
+func TestHelperSleep(t *testing.T) {
+	if os.Getenv("RUNTIDE_HELPER_SLEEP") == "1" {
+		time.Sleep(60 * time.Second)
+	}
+}
+
 func TestTerminateOwnChildOnly(t *testing.T) {
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-Command", "Start-Sleep -Seconds 60")
+	cmd := exec.Command(os.Args[0], "-test.run=TestHelperSleep")
+	cmd.Env = append(os.Environ(), "RUNTIDE_HELPER_SLEEP=1")
 	require.NoError(t, cmd.Start())
 	defer cmd.Process.Kill()
 	e := NewExplorer(nil)

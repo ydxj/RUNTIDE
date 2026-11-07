@@ -24,22 +24,22 @@ const (
 
 // Process is one row of the explorer.
 type Process struct {
-	PID             uint32    `json:"pid"`
-	PPID            uint32    `json:"ppid"`
-	Name            string    `json:"name"`
-	Path            string    `json:"path"`
-	CmdLine         string    `json:"cmdLine"`
-	Threads         uint32    `json:"threads"`
-	MemoryBytes     uint64    `json:"memoryBytes"`
-	PrivateBytes    uint64    `json:"privateBytes"`
-	CPUPercent      float64   `json:"cpuPercent"`
-	CPUSeconds      float64   `json:"cpuSeconds"`
-	StartTime       time.Time `json:"startTime"`
-	Accessible      bool      `json:"accessible"`
-	AccessError     string    `json:"accessError,omitempty"`
-	Protection      string    `json:"protection"`
-	ProtectionNote  string    `json:"protectionNote,omitempty"`
-	Managed         string    `json:"managed,omitempty"` // RUNTIDE service key when supervised
+	PID            uint32    `json:"pid"`
+	PPID           uint32    `json:"ppid"`
+	Name           string    `json:"name"`
+	Path           string    `json:"path"`
+	CmdLine        string    `json:"cmdLine"`
+	Threads        uint32    `json:"threads"`
+	MemoryBytes    uint64    `json:"memoryBytes"`
+	PrivateBytes   uint64    `json:"privateBytes"`
+	CPUPercent     float64   `json:"cpuPercent"`
+	CPUSeconds     float64   `json:"cpuSeconds"`
+	StartTime      time.Time `json:"startTime"`
+	Accessible     bool      `json:"accessible"`
+	AccessError    string    `json:"accessError,omitempty"`
+	Protection     string    `json:"protection"`
+	ProtectionNote string    `json:"protectionNote,omitempty"`
+	Managed        string    `json:"managed,omitempty"` // RUNTIDE service key when supervised
 }
 
 type cpuSample struct {
@@ -50,12 +50,12 @@ type cpuSample struct {
 // Explorer samples processes and remembers the previous sample so it can
 // compute CPU usage deltas.
 type Explorer struct {
-	mu       sync.Mutex
-	prev     map[uint32]cpuSample
-	numCPU   int
-	selfPID  uint32
-	winDir   string
-	managed  func() map[uint32]string // pid -> service key
+	mu      sync.Mutex
+	prev    map[uint32]cpuSample
+	numCPU  int
+	selfPID uint32
+	winDir  string
+	managed func() map[uint32]string // pid -> service key
 }
 
 // NewExplorer creates an explorer. managed may be nil.

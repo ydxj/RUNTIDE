@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/runtide/runtide/internal/process"
 	winapi "github.com/runtide/runtide/internal/platform/windows"
+	"github.com/runtide/runtide/internal/process"
 )
 
 // Listener is one listening socket with its owning process resolved.
