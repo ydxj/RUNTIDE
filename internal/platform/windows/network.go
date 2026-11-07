@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	modIphlpapi          = windows.NewLazySystemDLL("iphlpapi.dll")
-	procGetExtendedTCP   = modIphlpapi.NewProc("GetExtendedTcpTable")
-	procGetExtendedUDP   = modIphlpapi.NewProc("GetExtendedUdpTable")
+	modIphlpapi        = windows.NewLazySystemDLL("iphlpapi.dll")
+	procGetExtendedTCP = modIphlpapi.NewProc("GetExtendedTcpTable")
+	procGetExtendedUDP = modIphlpapi.NewProc("GetExtendedUdpTable")
 )
 
 const (

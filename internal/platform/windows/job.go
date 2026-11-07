@@ -31,6 +31,11 @@ func NewJob() (*Job, error) {
 	return &Job{h: h}, nil
 }
 
+type jobAccounting struct {
+	TotalUserTime, TotalKernelTime, ThisPeriodUser, ThisPeriodKernel               int64
+	TotalPageFaultCount, TotalProcesses, ActiveProcesses, TotalTerminatedProcesses uint32
+}
+
 // Assign adds a process (by pid) to the job.
 func (j *Job) Assign(pid uint32) error {
 	ph, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, pid)
@@ -51,8 +56,8 @@ func (j *Job) Terminate(code uint32) error {
 
 // ActiveProcesses returns how many processes are still alive in the job.
 func (j *Job) ActiveProcesses() (uint32, error) {
-	var info windows.JOBOBJECT_BASIC_ACCOUNTING_INFORMATION
-	if err := windows.QueryInformationJobObject(j.h, windows.JobObjectBasicAccountingInformation,
+	var info jobAccounting
+	if err := windows.QueryInformationJobObject(j.h, 1,
 		uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info)), nil); err != nil {
 		return 0, err
 	}

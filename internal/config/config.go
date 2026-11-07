@@ -196,7 +196,9 @@ func ValidateService(s *ServiceSpec, root string) []string {
 
 func validateHealth(svc string, h *HealthSpec) []string {
 	var p []string
-	add := func(f string, a ...any) { p = append(p, fmt.Sprintf("service %q healthcheck: "+f, append([]any{svc}, a...)...)) }
+	add := func(f string, a ...any) {
+		p = append(p, fmt.Sprintf("service %q healthcheck: "+f, append([]any{svc}, a...)...))
+	}
 	switch h.Type {
 	case "http":
 		u, err := url.Parse(h.URL)
