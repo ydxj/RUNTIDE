@@ -1,6 +1,6 @@
-# Known limitations (0.9.0)
+# Known limitations (0.9.1)
 
-What RUNTIDE does not do, what has not been verified, and why this release is **0.9.0** rather than 1.0.0. See also
+What RUNTIDE does not do, what has not been verified, and why this release is **0.9.1** rather than 1.0.0. See also
 [SECURITY_REVIEW.md](SECURITY_REVIEW.md#known-limitations-security-relevant).
 
 ## Why this is not 1.0.0
@@ -17,9 +17,9 @@ The 1.0.0 criteria in [V1_IMPLEMENTATION_PLAN.md](V1_IMPLEMENTATION_PLAN.md) are
 | Documentation matches implementation | Met to the best of the authors' checking |
 | **Isolation levels 3 (Docker) tested for real** | **Not met**: Docker Desktop was not running on the build machine. Docker execution was never run end to end |
 | **MCP validated with a real client** | **Not met**: Claude Code and Codex were not available; validated with the Go SDK client and a real stdio handshake only |
-| **Server container image built and run** | **Not met**: no Docker engine; the Linux binary the image contains was built and run in WSL2 instead |
+| **Server container image built and run** | **Met in CI**: GitHub Actions builds the image and checks the health endpoint of the running container on every push. Not run on the build machine (no Docker engine there); the Linux binary was also run in WSL2 |
 
-When those three items have been exercised for real, the version can move to 1.0.0 without code changes.
+When the two remaining items (Docker task isolation and a real MCP client) have been exercised for real, the version can move to 1.0.0 without code changes, unless they find bugs.
 
 ## Not implemented
 

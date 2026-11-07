@@ -6,11 +6,12 @@
   The per-user uninstall registration (HKCU) is created and removed by the installer itself.
   Refuses to run if RUNTIDE is already installed.
 .EXAMPLE
-  powershell -File build\tools\test-installer.ps1 -New dist\RUNTIDE-0.9.0-setup.exe -Old C:\path\RUNTIDE-0.2.0-setup.exe
+  powershell -File build\tools\test-installer.ps1 -New dist\RUNTIDE-0.9.1-setup.exe -Old C:\path\RUNTIDE-0.2.0-setup.exe
 #>
 param(
   [Parameter(Mandatory)] [string]$New,
-  [string]$Old = ""
+  [string]$Old = "",
+  [switch]$SameSchema   # the old version already has the current database schema (no migration, so no backup is expected)
 )
 $ErrorActionPreference = 'Stop'
 $results = [ordered]@{}
@@ -104,7 +105,11 @@ try {
     $logs = & $newCli run logs $id | Out-String
     Check "recorded output survived the upgrade" ($logs -match "before-upgrade")
     $bk = Get-ChildItem (Join-Path $data "backups") -Filter "pre-migration-*" -ErrorAction SilentlyContinue
-    Check "a pre-migration backup was written" (($bk | Measure-Object).Count -ge 1) (($bk | Select-Object -First 1).Name)
+    if ($SameSchema) {
+      Check "no migration needed, so no backup was written (same schema)" (($bk | Measure-Object).Count -eq 0)
+    } else {
+      Check "a pre-migration backup was written" (($bk | Measure-Object).Count -ge 1) (($bk | Select-Object -First 1).Name)
+    }
     & $newCli daemon stop | Out-Null
     Start-Sleep 2
     $code = Run (Join-Path $app "unins000.exe") @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")

@@ -1,6 +1,6 @@
 ; RUNTIDE installer (Inno Setup 6). Per-user by default: no administrator rights.
 #ifndef AppVersion
-  #define AppVersion "0.9.0"
+  #define AppVersion "0.9.1"
 #endif
 
 [Setup]

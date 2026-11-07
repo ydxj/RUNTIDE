@@ -1,4 +1,4 @@
-# Security review (0.9.0)
+# Security review (0.9.1)
 
 This is a self-review by the authors of the code, performed by reading it and attacking it with tests. It is **not** an external
 audit or a certification, and it does not claim RUNTIDE is secure. It lists what was examined, what was found, what was fixed and
@@ -34,6 +34,8 @@ on dependencies, and anything requiring physical access.
 | 4 | Packaging | The server image build would have failed: the server imported Windows-only packages through `internal/app` and `receipts` | Medium (deliverable did not work) | **Fixed** by splitting the platform-independent `receiptcore` and `internal/version`; the Linux binary is built and run in a test |
 | 5 | Test | An assertion on interleaved stdout/stderr lines in the capsule tests was order dependent (flaky, present in 0.2.0) | Low | **Fixed** |
 | 6 | Verification state | Receipts distinguished only "signed / not signed"; an invalid signature and an absent one were not explicit states | Low (clarity) | **Fixed**: `integrity` and `signatureState` are separate fields everywhere |
+| 7 | Container | The server image created `/data` as root, so the non-root server user (uid 65532) could not create `/data/artifacts` and the container exited at start | Medium (deliverable did not work) | **Fixed** in 0.9.1: the image creates `/data` owned by uid 65532; the CI container job starts the image and checks `/healthz` on every push |
+| 8 | Dependencies | 18 Dependabot alerts: 16 in development tooling (vitest, vite, esbuild, tinypool, launch-editor, minimatch) and 2 in `labstack/echo`, a transitive dependency of the Wails dev server (RUNTIDE does not use its rate limiter or reverse proxy) | Low in practice (not in the shipped web bundle or request paths) | **Fixed** in 0.9.1 by upgrades; GitHub reports 0 open alerts. Dependency risk stays out of scope of this self-review |
 
 No other critical or high-severity issue was found by this review. That statement is limited to what was examined.
 

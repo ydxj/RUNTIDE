@@ -1,5 +1,30 @@
 # Release notes
 
+## 0.9.1 (release candidate for 1.0.0)
+
+A fix release for 0.9.0. No features and no database changes (schema stays at version 3). Still a **release candidate**: Docker
+task isolation and a real MCP client have not been exercised ([KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)). Nothing has been
+published by the build; artifacts are in `dist\`.
+
+### Fixed
+* **Server container could not start** when run as its non-root user: `mkdir /data/artifacts: permission denied`. The image now
+  creates `/data` owned by uid 65532 and new volumes inherit it. Found by the container job in CI, which builds the image and
+  checks the health endpoint on every push.
+* **All 18 Dependabot alerts**: 16 were in development tooling (vitest 2 to 5, which brings vite 6.4.5; a scoped `minimatch`
+  override for the linter) and 2 were `labstack/echo` (4.16.1 to 4.16.3), which reaches RUNTIDE only through the Wails dev server;
+  RUNTIDE does not use Echo's rate limiter or reverse proxy. The shipped web bundle is byte-identical to 0.9.0.
+* **CI** now passes on every job: a `.gitattributes` keeps Go files LF on the Windows runner (`gofmt` had flagged every file), and
+  one end-to-end wait was lengthened for slow runners.
+
+### Changed
+* The README starts with a 20-second demo recorded from the real application (`tests/e2e/demo.spec.ts`, `build/tools/mkgif`).
+* Version strings, the installer, the Dockerfile and the compose file say 0.9.1.
+
+### Upgrading
+Install over 0.9.0 or 0.2.0; your data is kept. See [INSTALLATION.md](INSTALLATION.md).
+
+---
+
 ## 0.9.0 (release candidate for 1.0.0)
 
 RUNTIDE 0.9.0 completes the execution and verification platform started in 0.2 and fixes defects found while hardening it. It is

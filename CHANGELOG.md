@@ -2,7 +2,14 @@
 
 All notable changes to this project are documented here. Format: [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased] - 0.9.0 (release candidate)
+## 0.9.1 (release candidate)
+
+Fix release. The server container could not write `/data` as its non-root user (found by CI; the image now creates it owned by uid
+65532). All 18 Dependabot alerts resolved (development tooling: vitest 5, vite 6.4.5, a `minimatch` override; `labstack/echo`
+4.16.3). CI passes on all jobs (`.gitattributes` keeps Go files LF on the Windows runner). README demo recorded from the real app.
+No database change. See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
+
+## 0.9.0 (release candidate)
 
 Reusable verification profiles (desktop, CLI, MCP); project edit/archive/defaults; explicit receipt `integrity` and
 `signatureState`; replay pre-flight (dependencies, destructive operations, permissions) with four outcomes and a desktop approval

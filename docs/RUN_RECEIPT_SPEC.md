@@ -46,7 +46,7 @@ Readers never extract the archive to disk: they stream entries and check them ag
 {
   "format": "runtide.receipt",
   "formatVersion": 1,
-  "runtideVersion": "0.9.0",
+  "runtideVersion": "0.9.1",
   "executionId": "ex_…", "projectId": "pr_…", "projectName": "shop", "task": "…",
   "createdAt": "2026-11-06T19:00:00Z",
   "status": "COMPLETED",

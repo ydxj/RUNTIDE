@@ -1,5 +1,13 @@
 # Development progress
 
+## 0.9.1: fix release
+
+CI (all jobs green) found a real defect that local testing could not: the server container could not write its data directory as a
+non-root user. Fixed, together with 18 Dependabot alerts and the CI line-ending problem. The container image is now built and
+health-checked in CI. Docker task isolation and a real MCP client remain unexercised. Details: [RELEASE_NOTES.md](RELEASE_NOTES.md).
+
+---
+
 ## 0.9.0: release candidate (1.0.0 productization)
 
 Plan and outcome: [V1_IMPLEMENTATION_PLAN.md](V1_IMPLEMENTATION_PLAN.md). Evidence: [TESTING.md](TESTING.md). Everything below was
@@ -13,7 +21,7 @@ exercised on the build machine; nothing has been published or committed by the a
 | D Verification and comparison | Done | none known |
 | E Desktop application | Done | none known; the sidebar scrolls below about 900 px height |
 | F CLI and MCP | Done, except a real MCP client | Try Claude Code and Codex with `runtide mcp config` |
-| G Server and deployment | Done, except the container image | Build and run `deployments/Dockerfile` where Docker works (CI does) |
+| G Server and deployment | Done; image built and health-checked in CI | none known |
 | H Isolation validation | Done | Docker run (see B) |
 | I Security and QA | Done as a self-review | No external audit |
 | J Installation and packaging | Done | Clean-VM and Windows 10 install not tested |

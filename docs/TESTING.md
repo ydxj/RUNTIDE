@@ -20,21 +20,25 @@ approval gate, rollback, traversal rejection), ports (IPv4/IPv6/UDP ownership of
 redaction, health state machine, env files, diagnostics fixes (never overwrite, never outside roots), CLI (exit codes, JSON,
 confirmation).
 
-## Results of the last full run (0.9.0; Windows 11 Pro 10.0.26200, Go 1.27.3, Node 24.14)
+## Results of the last full run (0.9.1; Windows 11 Pro 10.0.26200, Go 1.27.3, Node 24.14)
 
 | Check | Result |
 | --- | --- |
 | `gofmt`, `go vet`, `golangci-lint` | clean; 0 issues |
-| Go tests (`./cmd ./internal ./tests/e2ehost ./tests/scenario ./build .`) | **183 passed, 0 failed, 1 skipped**, 29 packages |
+| Go tests (`./cmd ./internal ./tests/e2ehost ./tests/scenario ./build .`) | **29 packages OK, 0 failed** (re-run in full for 0.9.1; the Docker container test still skips when no engine is running) |
 | The one skipped test | `TestDockerIsolationRunsCommandsInsideAContainer`: Docker Desktop was not running, so **no container was run** |
 | Race detector (`go test -race`, Git Bash) | clean on server, store, verification, execution, receipts, receiptcore, capsule, supervisor, mcpserver, files, config |
 | Frontend: `tsc --noEmit`, ESLint (0 warnings), Prettier | clean |
 | Vitest | **41 passed** (9 files) |
 | Playwright (real engine through the `e2ehost` bridge, Microsoft Edge) | **12 passed**; the screenshots spec is skipped unless `SCREENSHOTS=1` and passed separately |
-| Installer (`build/tools/test-installer.ps1`) | **28 checks, 0 failed**: fresh install, files, registration, CLI and MCP from the install folder, desktop app window, uninstall, upgrade from the **real 0.2.0 installer** with project, execution and output kept and a pre-migration backup written |
+| Installer (`build/tools/test-installer.ps1`) | **28 checks, 0 failed, for each of two runs** (the old-version upgrade differs): fresh install, files, registration, CLI and MCP from the install folder, desktop app window, uninstall; upgrade from the **real 0.2.0 installer** (project, execution and output kept, `pre-migration-v2-...` backup written) and from the **0.9.0 installer** with `-SameSchema` (data kept, no backup needed) |
 | Linux server | built with `GOOS=linux CGO_ENABLED=0` and run **inside WSL2 Ubuntu** against a receipt made on Windows (part of the Go suite) |
 | MCP server | `runtide mcp check` on the built binary: 9 / 14 / 18 tools at `read` / `controlled` / `sensitive`; handshake and read-only calls succeed |
+| GitHub Actions CI (`go`, `frontend`, `docker`) | **All green** on commit `7913c20` (run 8 of CI; the 0.9.0 code plus the fixes, before the version bump to 0.9.1): gofmt, vet, golangci-lint, Go tests, race detector, Linux server build, Playwright end-to-end tests on a Windows runner, frontend checks, and the **server container image built and its `/healthz` checked inside the running container** |
+| Dependabot | **0 open alerts** (18 closed by the 0.9.1 dependency updates) |
 | WSL2 isolation | a real execution inside Ubuntu on WSL2 (part of the Go suite) |
+
+The race detector and Playwright rows were last run locally for 0.9.0; CI runs both on every push (green on `7913c20`).
 
 Race detector note: run it from Git Bash with `CGO_ENABLED=1` and `C:\msys64\ucrt64\bin` on `PATH`. From PowerShell on the build machine
 ThreadSanitizer failed to start (an address-space allocation error) before running any test, so those runs prove nothing.
