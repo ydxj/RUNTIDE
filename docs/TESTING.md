@@ -70,3 +70,9 @@ that would have caught a crash found during development).
 
 * Use explicit package lists: `./...` also matches `frontend/node_modules/flatted/golang`.
 * Test helpers re-execute the test binary as a fake dev server (`RUNTIDE_HELPER=...` in `TestMain`).
+
+## Regenerating the README demo
+
+`DEMO=1 DEMO_FRAMES=<empty dir> npx playwright test demo.spec.ts` (in `tests/e2e`, with `RUNTIDE_E2E_HOST` pointing at a built
+`e2ehost.exe`) records the run, verify, receipt and replay flow from the real app; then
+`go run ./build/tools/mkgif -manifest <dir>/manifest.json -out docs/screenshots/demo.gif -speed 1.25` builds the GIF.

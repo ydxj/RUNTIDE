@@ -8,9 +8,14 @@ what actually happened. Underneath is the 0.1 local infrastructure control cente
 health, environment, Doctor). One engine serves the desktop app, the CLI, an MCP server for coding agents and an optional
 self-hosted receipt server. No cloud account, no telemetry; nothing leaves your machine unless you push a receipt yourself.
 
+![Run, verify, receipt, replay in the RUNTIDE desktop app](docs/screenshots/demo.gif)
+
+*Run a task, verify it, get a Run Receipt, replay it from the receipt (about 20 seconds; waiting time is shortened).*
+
 ![Executions](docs/screenshots/executions.png)
 
-> Screenshots are captured from the running application against real executions (`tests/e2e/screenshots.spec.ts`).
+> The animation and screenshots are captured from the running application against real executions
+> (`tests/e2e/demo.spec.ts`, `tests/e2e/screenshots.spec.ts`); the animation is assembled by `build/tools/mkgif`.
 > RUNTIDE is a release candidate (0.9.0). See [Status](#status) and [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) for what is and is not finished.
 
 ## The workflow
