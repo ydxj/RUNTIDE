@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -389,11 +390,4 @@ func has(l []string, s string) bool {
 	return false
 }
 
-func sortByID(e []Entry) {
-	// insertion-friendly: per-ring slices are already sorted, so a simple sort suffices
-	for i := 1; i < len(e); i++ {
-		for j := i; j > 0 && e[j].ID < e[j-1].ID; j-- {
-			e[j], e[j-1] = e[j-1], e[j]
-		}
-	}
-}
+func sortByID(e []Entry) { sort.Slice(e, func(i, j int) bool { return e[i].ID < e[j].ID }) }

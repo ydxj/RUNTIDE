@@ -46,7 +46,7 @@ func ft(f windows.Filetime) uint64 { return uint64(f.HighDateTime)<<32 | uint64(
 // SystemCPUTimes returns cumulative times; Kernel includes Idle.
 func SystemCPUTimes() (CPUTimes, error) {
 	var i, k, u windows.Filetime
-	if err := windows.GetSystemTimes(&i, &k, &u); err != nil {
+	if r, _, err := procGetSystemTimes.Call(uintptr(unsafe.Pointer(&i)), uintptr(unsafe.Pointer(&k)), uintptr(unsafe.Pointer(&u))); r == 0 {
 		return CPUTimes{}, err
 	}
 	return CPUTimes{ft(i), ft(k), ft(u)}, nil
