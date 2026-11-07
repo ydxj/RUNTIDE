@@ -23,6 +23,7 @@ var (
 	procGetProcessMemoryInfo     = modPsapi.NewProc("GetProcessMemoryInfo")
 	procNtQueryInformationProc   = modNtdll.NewProc("NtQueryInformationProcess")
 	procGlobalMemoryStatusEx     = modKernel32.NewProc("GlobalMemoryStatusEx")
+	procGetSystemTimes           = modKernel32.NewProc("GetSystemTimes")
 	procGenerateConsoleCtrlEvent = modKernel32.NewProc("GenerateConsoleCtrlEvent")
 )
 
