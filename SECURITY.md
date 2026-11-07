@@ -7,8 +7,7 @@ Only the latest release receives security fixes while RUNTIDE is pre-1.0.
 ## Reporting a vulnerability
 
 Please do **not** open a public issue. Use GitHub's private "Report a vulnerability" feature on the repository
-(Security tab > Advisories). *Maintainer: enable private vulnerability reporting and, if you prefer email, add the
-address here before publishing.*
+(Security tab > Advisories).
 
 Include: affected version, steps to reproduce, impact, and whether the issue needs a local user, another local
 process or a malicious workspace file. You should get an acknowledgement within a few days.
