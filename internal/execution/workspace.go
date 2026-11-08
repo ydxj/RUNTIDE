@@ -13,6 +13,7 @@ import (
 	"github.com/runtide/runtide/internal/config"
 	"github.com/runtide/runtide/internal/domain"
 	"github.com/runtide/runtide/internal/files"
+	"github.com/runtide/runtide/internal/procutil"
 )
 
 var commitRe = regexp.MustCompile(`^[0-9a-f]{7,64}$`)
@@ -213,7 +214,7 @@ func (m *Manager) materialise(plan *WorkspacePlan) error {
 }
 
 func git(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd := procutil.Hide(exec.Command("git", append([]string{"-C", dir}, args...)...))
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	err := cmd.Run()

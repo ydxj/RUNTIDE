@@ -4,4 +4,4 @@
 package version
 
 // Version is the RUNTIDE version.
-var Version = "0.9.1-dev"
+var Version = "0.9.2-dev"

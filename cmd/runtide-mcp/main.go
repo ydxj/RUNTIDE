@@ -18,6 +18,7 @@ import (
 	"github.com/runtide/runtide/internal/api"
 	"github.com/runtide/runtide/internal/mcpserver"
 	"github.com/runtide/runtide/internal/paths"
+	"github.com/runtide/runtide/internal/procutil"
 )
 
 func main() {
@@ -40,7 +41,7 @@ func main() {
 		if _, serr := os.Stat(cli); serr != nil {
 			fatal(fmt.Errorf("no running RUNTIDE engine and runtide.exe was not found next to %s: start the RUNTIDE app or `runtide daemon start`", self))
 		}
-		if out, rerr := exec.Command(cli, "daemon", "start").CombinedOutput(); rerr != nil {
+		if out, rerr := procutil.Hide(exec.Command(cli, "daemon", "start")).CombinedOutput(); rerr != nil {
 			fatal(fmt.Errorf("could not start the RUNTIDE engine: %v: %s", rerr, out))
 		}
 		for i := 0; i < 50 && c == nil; i++ {

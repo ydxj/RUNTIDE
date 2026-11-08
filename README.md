@@ -16,7 +16,7 @@ self-hosted receipt server. No cloud account, no telemetry; nothing leaves your 
 
 > The animation and screenshots are captured from the running application against real executions
 > (`tests/e2e/demo.spec.ts`, `tests/e2e/screenshots.spec.ts`); the animation is assembled by `build/tools/mkgif`.
-> RUNTIDE is a release candidate (0.9.1). See [Status](#status) and [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) for what is and is not finished.
+> RUNTIDE is a release candidate (0.9.2). See [Status](#status) and [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) for what is and is not finished.
 
 ## The workflow
 
@@ -169,7 +169,7 @@ approval, secrets are redacted, the local API is loopback + token + origin/host 
 
 ## Status
 
-0.9.1 is the release candidate for 1.0.0. Evidence is in [docs/TESTING.md](docs/TESTING.md); the full list of limitations is in
+0.9.2 is the release candidate for 1.0.0. Evidence is in [docs/TESTING.md](docs/TESTING.md); the full list of limitations is in
 [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
 
 * **Implemented and tested on Windows**: projects (edit, archive, defaults), workspaces and lifecycle, managed, worktree and

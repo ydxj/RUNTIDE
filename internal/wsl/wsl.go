@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+
+	"github.com/runtide/runtide/internal/procutil"
 )
 
 // Distro is one installed distribution.
@@ -30,7 +32,7 @@ type Status struct {
 }
 
 var runner = func(ctx context.Context, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, "wsl.exe", args...).Output()
+	return procutil.Hide(exec.CommandContext(ctx, "wsl.exe", args...)).Output()
 }
 
 // decode converts wsl.exe output (UTF-16LE, no BOM) to a string; plain ASCII

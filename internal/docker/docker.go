@@ -15,6 +15,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/runtide/runtide/internal/procutil"
 )
 
 // Status is the high-level Docker availability picture.
@@ -45,7 +47,7 @@ type Container struct {
 
 // runner executes the docker CLI; replaced in tests.
 var runner = func(ctx context.Context, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd := procutil.Hide(exec.CommandContext(ctx, "docker", args...))
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	err := cmd.Run()

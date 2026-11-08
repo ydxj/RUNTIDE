@@ -68,6 +68,7 @@ that would have caught a crash found during development).
 * `powershell -File build\tools\test-installer.ps1 -New dist\RUNTIDE-<ver>-setup.exe -Old <older installer>`: installer fresh/upgrade/uninstall in a temporary directory with an isolated data folder (refuses to run if RUNTIDE is installed).
 * `runtide mcp check --level read|controlled|sensitive`: exercises the MCP server from the CLI.
 * `runtide diagnostics isolation`: which isolation levels can run on this machine.
+* `powershell -File build\tools\test-no-console-windows.ps1 -Cli dist\runtide.exe -Label current`: starts the detached engine and counts console windows that appear while it probes tools, Docker, WSL and git (must be 0; the 0.9.1 build showed 41). `internal/procutil/guard_test.go` additionally fails the Go tests if shipped code starts a process without `procutil.Hide`.
 * `tests/linux/server-smoke.sh`: the Linux server smoke test (driven by the Go scenario test through WSL).
 
 ## Gotchas

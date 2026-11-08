@@ -6,7 +6,7 @@
   The per-user uninstall registration (HKCU) is created and removed by the installer itself.
   Refuses to run if RUNTIDE is already installed.
 .EXAMPLE
-  powershell -File build\tools\test-installer.ps1 -New dist\RUNTIDE-0.9.1-setup.exe -Old C:\path\RUNTIDE-0.2.0-setup.exe
+  powershell -File build\tools\test-installer.ps1 -New dist\RUNTIDE-0.9.2-setup.exe -Old C:\path\RUNTIDE-0.2.0-setup.exe
 #>
 param(
   [Parameter(Mandatory)] [string]$New,

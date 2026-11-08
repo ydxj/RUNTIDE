@@ -1,6 +1,6 @@
-# Known limitations (0.9.1)
+# Known limitations (0.9.2)
 
-What RUNTIDE does not do, what has not been verified, and why this release is **0.9.1** rather than 1.0.0. See also
+What RUNTIDE does not do, what has not been verified, and why this release is **0.9.2** rather than 1.0.0. See also
 [SECURITY_REVIEW.md](SECURITY_REVIEW.md#known-limitations-security-relevant).
 
 ## Why this is not 1.0.0

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/runtide/runtide/internal/procutil"
 )
 
 // Install is one concrete executable of a tool.
@@ -119,7 +121,7 @@ func findAll(dirs []string, names []string) []string {
 func runVersion(ctx context.Context, exe string, args []string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, exe, args...)
+	cmd := procutil.Hide(exec.CommandContext(ctx, exe, args...))
 	cmd.Env = append(os.Environ(), "NO_COLOR=1", "COMPOSER_NO_INTERACTION=1")
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err

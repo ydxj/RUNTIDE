@@ -13,6 +13,7 @@ import (
 	"github.com/runtide/runtide/internal/domain"
 	"github.com/runtide/runtide/internal/execution"
 	"github.com/runtide/runtide/internal/files"
+	"github.com/runtide/runtide/internal/procutil"
 	"github.com/runtide/runtide/internal/redact"
 	"github.com/runtide/runtide/internal/tools"
 	"gopkg.in/yaml.v3"
@@ -118,7 +119,7 @@ func planReplay(r *Receipt, o ReplayOptions) *ReplayPlan {
 		if !files.IsGitRepo(o.ProjectDir) {
 			p.Blockers = append(p.Blockers, o.ProjectDir+" is not a git repository")
 		} else if p.Commit != "" {
-			if out, err := exec.Command("git", "-C", o.ProjectDir, "cat-file", "-e", p.Commit+"^{commit}").CombinedOutput(); err != nil {
+			if out, err := procutil.Hide(exec.Command("git", "-C", o.ProjectDir, "cat-file", "-e", p.Commit+"^{commit}")).CombinedOutput(); err != nil {
 				p.Blockers = append(p.Blockers, fmt.Sprintf("commit %.10s is not present in %s: %s", p.Commit, o.ProjectDir, strings.TrimSpace(string(out))))
 			}
 		} else {

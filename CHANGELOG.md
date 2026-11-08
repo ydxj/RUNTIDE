@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. Format: [Keep a Changelog](https://keepachangelog.com/).
 
+## 0.9.2 (release candidate)
+
+Fixed: console windows flashed on screen while the engine probed tools, Docker, WSL and git (0.9.0 and 0.9.1); every helper process
+now starts without a visible window (`internal/procutil`, guarded by a test). See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
+
 ## 0.9.1 (release candidate)
 
 Fix release. The server container could not write `/data` as its non-root user (found by CI; the image now creates it owned by uid

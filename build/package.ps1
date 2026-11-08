@@ -12,7 +12,7 @@
   Nothing is signed or published.
 #>
 param(
-  [string]$Version = "0.9.1",
+  [string]$Version = "0.9.2",
   [switch]$SkipInstaller
 )
 $ErrorActionPreference = 'Stop'

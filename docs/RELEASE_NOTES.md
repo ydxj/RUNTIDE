@@ -1,5 +1,24 @@
 # Release notes
 
+## 0.9.2 (release candidate for 1.0.0)
+
+A fix release for 0.9.0 and 0.9.1. No features and no database changes (schema stays at version 3). Still a **release candidate**:
+Docker task isolation and a real MCP client have not been exercised ([KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)).
+
+### Fixed
+* **Console windows flashed on screen while RUNTIDE ran** (0.9.0 and 0.9.1; it looks like malware to users). The background engine
+  has no console of its own, so Windows opened a new visible console window for every console helper it started: the tool
+  version probes (`node`, `npm`, `php`, ...), `docker`, `wsl.exe`, `git`, and command health checks. All of them now start with
+  `CREATE_NO_WINDOW` through one helper (`internal/procutil`). Measured before the fix: 41 new terminal windows within a few
+  seconds of asking the engine for tools, Docker, WSL and doctor results; after the fix: 0, with the same results returned.
+  A test now fails the build if any shipped code starts a process without the helper.
+
+### Upgrading
+Install over 0.9.1, 0.9.0 or 0.2.0; your data is kept. Stop the old engine first if you want the fix right away
+(`runtide daemon stop`); the installer also stops it.
+
+---
+
 ## 0.9.1 (release candidate for 1.0.0)
 
 A fix release for 0.9.0. No features and no database changes (schema stays at version 3). Still a **release candidate**: Docker

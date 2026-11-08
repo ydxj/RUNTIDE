@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/runtide/runtide/internal/config"
+	"github.com/runtide/runtide/internal/procutil"
 )
 
 // Status values shown in the UI.
@@ -99,7 +100,7 @@ func probe(ctx context.Context, h *config.HealthSpec, isAlive func() bool) Resul
 		return Result{Detail: "process is not running"}
 	case "command":
 		// Explicitly configured command; executed directly, never through a shell.
-		out, err := exec.CommandContext(ctx, h.Command, h.Args...).CombinedOutput()
+		out, err := procutil.Hide(exec.CommandContext(ctx, h.Command, h.Args...)).CombinedOutput()
 		if err != nil {
 			msg := err.Error()
 			if len(out) > 0 {

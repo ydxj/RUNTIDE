@@ -1,5 +1,14 @@
 # Development progress
 
+## 0.9.2: fix release
+
+Fixes the console windows that flashed whenever the background engine ran a helper program (tool probes, Docker, WSL, git, health
+checks), which made RUNTIDE look like malware. All helpers now start without a visible window through `internal/procutil`;
+measured 41 windows before and 0 after, and a test guards against new launches that skip the helper. Details:
+[RELEASE_NOTES.md](RELEASE_NOTES.md).
+
+---
+
 ## 0.9.1: fix release
 
 CI (all jobs green) found a real defect that local testing could not: the server container could not write its data directory as a

@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/runtide/runtide/internal/domain"
+	"github.com/runtide/runtide/internal/procutil"
 )
 
 // DefaultExcludedDirs are never descended into or reported.
@@ -108,7 +109,7 @@ func IsGitRepo(dir string) bool {
 }
 
 func gitOut(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd := procutil.Hide(exec.Command("git", append([]string{"-C", dir}, args...)...))
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
 	var out bytes.Buffer
 	cmd.Stdout = &out

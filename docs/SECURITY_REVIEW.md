@@ -1,4 +1,4 @@
-# Security review (0.9.1)
+# Security review (0.9.2)
 
 This is a self-review by the authors of the code, performed by reading it and attacking it with tests. It is **not** an external
 audit or a certification, and it does not claim RUNTIDE is secure. It lists what was examined, what was found, what was fixed and
@@ -36,6 +36,7 @@ on dependencies, and anything requiring physical access.
 | 6 | Verification state | Receipts distinguished only "signed / not signed"; an invalid signature and an absent one were not explicit states | Low (clarity) | **Fixed**: `integrity` and `signatureState` are separate fields everywhere |
 | 7 | Container | The server image created `/data` as root, so the non-root server user (uid 65532) could not create `/data/artifacts` and the container exited at start | Medium (deliverable did not work) | **Fixed** in 0.9.1: the image creates `/data` owned by uid 65532; the CI container job starts the image and checks `/healthz` on every push |
 | 8 | Dependencies | 18 Dependabot alerts: 16 in development tooling (vitest, vite, esbuild, tinypool, launch-editor, minimatch) and 2 in `labstack/echo`, a transitive dependency of the Wails dev server (RUNTIDE does not use its rate limiter or reverse proxy) | Low in practice (not in the shipped web bundle or request paths) | **Fixed** in 0.9.1 by upgrades; GitHub reports 0 open alerts. Dependency risk stays out of scope of this self-review |
+| 9 | Trust | Console windows flashed whenever the detached engine started a helper (tool probes, Docker, WSL, git, health checks): behaviour that looks like malware to users | Medium (user trust, not a vulnerability) | **Fixed** in 0.9.2: all helpers start with `CREATE_NO_WINDOW` (`internal/procutil`); 41 windows before, 0 after; guarded by a test |
 
 No other critical or high-severity issue was found by this review. That statement is limited to what was examined.
 

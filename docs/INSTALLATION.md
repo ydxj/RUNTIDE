@@ -47,7 +47,7 @@ receipts, backups). Delete that folder yourself for a full wipe; export any rece
 
 ## Verifying downloads
 
-`SHA256SUMS.txt` lists the SHA-256 of every artifact: `Get-FileHash .\RUNTIDE-0.9.1-setup.exe -Algorithm SHA256`. Binaries are
+`SHA256SUMS.txt` lists the SHA-256 of every artifact: `Get-FileHash .\RUNTIDE-0.9.2-setup.exe -Algorithm SHA256`. Binaries are
 not code-signed, so compare the hash with one you obtained from a source you trust.
 
 ## Upgrading from 0.1 or 0.2

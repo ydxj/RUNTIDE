@@ -35,3 +35,10 @@ is on the Logs page.
 | Disk use keeps growing | Execution evidence is kept forever by default. Set `execRetentionDays`, or `runtide run prune --older-than 90`. |
 | `run verify` says "no verification defined" | The workspace has no `verify` section and its project has no default profile: use `--profile`, add a `verify` section, or set `project update --default-profile`. |
 | `runtide mcp check` fails | `runtide-mcp.exe` must be next to `runtide.exe`; the message says what failed (start, handshake, tool list or call). |
+
+## Console windows keep flashing on screen
+
+Versions 0.9.0 and 0.9.1 opened a short-lived console window for each helper program the background engine ran (tool version
+checks, Docker, WSL, git). It was a defect, not malware, but it looked like it. Update to 0.9.2 or newer, then stop the old engine
+(`runtide daemon stop`) so the new one starts. If windows still appear, run
+`powershell -File build\tools\test-no-console-windows.ps1 -Cli <path to runtide.exe> -Label test` and open an issue with its output.
