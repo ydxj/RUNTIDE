@@ -13,14 +13,14 @@ import (
 
 // Sample is one point in time.
 type Sample struct {
-	Time          time.Time `json:"time"`
-	CPUPercent    float64   `json:"cpuPercent"`
-	MemTotal      uint64    `json:"memTotal"`
-	MemAvailable  uint64    `json:"memAvailable"`
-	MemUsed       uint64    `json:"memUsed"`
-	MemPercent    float64   `json:"memPercent"`
-	CommitTotal   uint64    `json:"commitTotal"`
-	CommitUsed    uint64    `json:"commitUsed"`
+	Time         time.Time `json:"time"`
+	CPUPercent   float64   `json:"cpuPercent"`
+	MemTotal     uint64    `json:"memTotal"`
+	MemAvailable uint64    `json:"memAvailable"`
+	MemUsed      uint64    `json:"memUsed"`
+	MemPercent   float64   `json:"memPercent"`
+	CommitTotal  uint64    `json:"commitTotal"`
+	CommitUsed   uint64    `json:"commitUsed"`
 }
 
 // Disk is volume information.

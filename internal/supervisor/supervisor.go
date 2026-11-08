@@ -39,10 +39,10 @@ const (
 
 // Event describes something notable (used for notifications and activity).
 type Event struct {
-	Kind    string `json:"kind"` // started|stopped|exited|crashed|restarting|gave-up|health
-	Key     string `json:"key"`
-	Detail  string `json:"detail"`
-	Level   string `json:"level"` // info|warn|error
+	Kind   string `json:"kind"` // started|stopped|exited|crashed|restarting|gave-up|health
+	Key    string `json:"key"`
+	Detail string `json:"detail"`
+	Level  string `json:"level"` // info|warn|error
 }
 
 // Recorder persists run history; every method must be safe to call concurrently.
@@ -54,20 +54,20 @@ type Recorder interface {
 
 // Info is a read-only view of an instance.
 type Info struct {
-	Key          string            `json:"key"`
+	Key          string             `json:"key"`
 	Spec         config.ServiceSpec `json:"spec"`
-	Root         string            `json:"root"`
-	State        State             `json:"state"`
-	PID          int               `json:"pid"`
-	StartedAt    time.Time         `json:"startedAt,omitempty"`
-	UptimeSec    float64           `json:"uptimeSec"`
-	ExitCode     *int              `json:"exitCode"`
-	LastError    string            `json:"lastError,omitempty"`
-	Restarts     int               `json:"restarts"`      // consecutive
-	TotalRestart int               `json:"totalRestarts"`
-	Health       health.Status     `json:"health"`
-	HealthDetail string            `json:"healthDetail,omitempty"`
-	NextRetryAt  time.Time         `json:"nextRetryAt,omitempty"`
+	Root         string             `json:"root"`
+	State        State              `json:"state"`
+	PID          int                `json:"pid"`
+	StartedAt    time.Time          `json:"startedAt,omitempty"`
+	UptimeSec    float64            `json:"uptimeSec"`
+	ExitCode     *int               `json:"exitCode"`
+	LastError    string             `json:"lastError,omitempty"`
+	Restarts     int                `json:"restarts"` // consecutive
+	TotalRestart int                `json:"totalRestarts"`
+	Health       health.Status      `json:"health"`
+	HealthDetail string             `json:"healthDetail,omitempty"`
+	NextRetryAt  time.Time          `json:"nextRetryAt,omitempty"`
 }
 
 type instance struct {
@@ -75,20 +75,20 @@ type instance struct {
 	spec config.ServiceSpec
 	root string
 
-	mu          sync.Mutex
-	state       State
-	pid         int
-	startedAt   time.Time
-	exitCode    *int
-	lastErr     string
-	restarts    int
-	totalRest   int
-	nextRetry   time.Time
-	stopReq     bool
-	job         *winapi.Job
-	exited      chan struct{} // closed when the current process (tree) is fully gone
-	cancel      context.CancelFunc // cancels the monitor loop incl. backoff waits
-	loopDone    chan struct{}
+	mu        sync.Mutex
+	state     State
+	pid       int
+	startedAt time.Time
+	exitCode  *int
+	lastErr   string
+	restarts  int
+	totalRest int
+	nextRetry time.Time
+	stopReq   bool
+	job       *winapi.Job
+	exited    chan struct{}      // closed when the current process (tree) is fully gone
+	cancel    context.CancelFunc // cancels the monitor loop incl. backoff waits
+	loopDone  chan struct{}
 }
 
 // Manager supervises many services.
@@ -327,7 +327,10 @@ func (m *Manager) launch(ctx context.Context, in *instance) error {
 		HideWindow:    true,
 	}
 	if err := cmd.Start(); err != nil {
-		outR.Close(); outW.Close(); errR.Close(); errW.Close()
+		outR.Close()
+		outW.Close()
+		errR.Close()
+		errW.Close()
 		job.Close()
 		return fmt.Errorf("start %s: %w", spec.Command, err)
 	}
@@ -337,14 +340,16 @@ func (m *Manager) launch(ctx context.Context, in *instance) error {
 	if err := job.Assign(pid); err != nil {
 		_ = cmd.Process.Kill()
 		cmd.Wait()
-		outR.Close(); errR.Close()
+		outR.Close()
+		errR.Close()
 		job.Close()
 		return err
 	}
 	if err := winapi.ResumeProcess(pid); err != nil {
 		_ = job.Terminate(1)
 		cmd.Wait()
-		outR.Close(); errR.Close()
+		outR.Close()
+		errR.Close()
 		job.Close()
 		return err
 	}
@@ -431,7 +436,15 @@ func (m *Manager) watch(ctx context.Context, in *instance) {
 		select {
 		case <-exited:
 		case <-ctx.Done():
-			// Stop() drives the shutdown; wait for the process to be gone.
+			// Stop() drives the shutdown; if we were cancelled while a process
+			// is still alive (e.g. a restart raced with Stop), kill its tree so
+			// nothing is orphaned.
+			in.mu.Lock()
+			j := in.job
+			in.mu.Unlock()
+			if j != nil {
+				_ = j.Terminate(1)
+			}
 			<-exited
 		}
 		in.mu.Lock()
@@ -754,4 +767,3 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	m.stop()
 	return errors.Join(errs...)
 }
-
