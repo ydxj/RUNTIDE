@@ -20,7 +20,7 @@ var (
 )
 
 // GracefulInterrupt asks the console processes sharing pid's (hidden) console
-// to stop by delivering CTRL_BREAK. Services are launched with their own
+// to stop by delivering CTRL_C (a console process ignores CTRL_C only if it opted out). Services are launched with their own
 // hidden console, so the event only reaches that service's processes.
 //
 // The technique temporarily detaches the calling process from its own console
@@ -37,12 +37,12 @@ func GracefulInterrupt(pid uint32) error {
 	}
 	// Make sure we do not receive our own event.
 	procSetConsoleCtrlHandler.Call(0, 1)
-	r2, _, err2 := procGenerateConsoleCtrlEvent.Call(uintptr(windows.CTRL_BREAK_EVENT), 0)
+	r2, _, err2 := procGenerateConsoleCtrlEvent.Call(uintptr(windows.CTRL_C_EVENT), 0)
 	time.Sleep(100 * time.Millisecond) // let the event be delivered before detaching
 	procFreeConsole.Call()
 	procSetConsoleCtrlHandler.Call(0, 0)
 	if r2 == 0 {
-		return fmt.Errorf("deliver CTRL_BREAK: %w", err2)
+		return fmt.Errorf("deliver CTRL_C: %w", err2)
 	}
 	return nil
 }
