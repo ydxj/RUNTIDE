@@ -1,0 +1,38 @@
+# Build output
+/dist/
+/build/bin/
+*.exe
+*.syso
+/frontend/dist/
+/frontend/node_modules/
+/frontend/wailsjs/
+/frontend/coverage/
+/.tools/
+
+# Go
+*.test
+*.out
+coverage.txt
+
+# Editors / OS
+.idea/
+.vscode/
+Thumbs.db
+desktop.ini
+
+# Local data and secrets
+.env
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+*.runtide-backup-*
+
+# Playwright
+/tests/e2e/node_modules/
+/tests/e2e/test-results/
+/tests/e2e/playwright-report/
+
+# Demo project generated for screenshots
+/.demo/

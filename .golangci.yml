@@ -1,0 +1,51 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - bodyclose
+  settings:
+    errcheck:
+      # Cleanup-path calls whose failure cannot be acted upon.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*net.Listener).Close
+        - (net.Listener).Close
+        - (net.Conn).Close
+        - (io.ReadCloser).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Tx).Rollback
+        - (golang.org/x/sys/windows/registry.Key).Close
+        - (*database/sql.Stmt).Close
+        - (*net/http.Server).Serve
+        - (net/http.ResponseWriter).Write
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Sscanf
+        - os.Remove
+        - encoding/binary.Write
+        - golang.org/x/sys/windows.CloseHandle
+        - golang.org/x/sys/windows.CloseServiceHandle
+        - (golang.org/x/sys/windows.Token).Close
+        - (*golang.org/x/sys/windows.LazyProc).Call
+        - (*os/exec.Cmd).Wait
+        - (*os/exec.Cmd).Start
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - ineffassign
+formatters:
+  enable:
+    - gofmt
