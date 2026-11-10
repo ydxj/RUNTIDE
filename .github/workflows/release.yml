@@ -1,0 +1,33 @@
+name: Release build (manual)
+
+# Builds the desktop app, CLI, portable zip and installer as workflow artifacts.
+# It never publishes a GitHub release: the maintainer does that by hand.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version (for example 0.1.0)
+        required: true
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Wails and Inno Setup
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          choco install innosetup -y --no-progress
+      - name: Package
+        shell: pwsh
+        run: ./build/package.ps1 -Version "${{ inputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtide-${{ inputs.version }}
+          path: dist/*
