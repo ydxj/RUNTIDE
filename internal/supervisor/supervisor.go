@@ -308,14 +308,14 @@ func (m *Manager) launch(ctx context.Context, in *instance) error {
 	}
 	outR, outW, err := os.Pipe()
 	if err != nil {
-		job.Close()
+		_ = job.Close()
 		return err
 	}
 	errR, errW, err := os.Pipe()
 	if err != nil {
 		outR.Close()
 		outW.Close()
-		job.Close()
+		_ = job.Close()
 		return err
 	}
 	cmd := exec.Command(exe, spec.Args...)
@@ -331,7 +331,7 @@ func (m *Manager) launch(ctx context.Context, in *instance) error {
 		outW.Close()
 		errR.Close()
 		errW.Close()
-		job.Close()
+		_ = job.Close()
 		return fmt.Errorf("start %s: %w", spec.Command, err)
 	}
 	outW.Close()
@@ -342,7 +342,7 @@ func (m *Manager) launch(ctx context.Context, in *instance) error {
 		cmd.Wait()
 		outR.Close()
 		errR.Close()
-		job.Close()
+		_ = job.Close()
 		return err
 	}
 	if err := winapi.ResumeProcess(pid); err != nil {
@@ -350,7 +350,7 @@ func (m *Manager) launch(ctx context.Context, in *instance) error {
 		cmd.Wait()
 		outR.Close()
 		errR.Close()
-		job.Close()
+		_ = job.Close()
 		return err
 	}
 
@@ -406,7 +406,7 @@ func (m *Manager) launch(ctx context.Context, in *instance) error {
 		case <-done:
 		case <-time.After(2 * time.Second):
 		}
-		job.Close()
+		_ = job.Close()
 		in.mu.Lock()
 		c := code
 		in.exitCode = &c
