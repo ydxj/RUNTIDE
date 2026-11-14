@@ -139,8 +139,36 @@ func (e *Explorer) Snapshot(withCmdLine bool) ([]Process, error) {
 		p.Protection, p.ProtectionNote = Classify(p, e.selfPID, e.winDir)
 		out = append(out, p)
 	}
+	propagateManaged(out)
 	e.prev = next
 	return out, nil
+}
+
+// propagateManaged marks every descendant of a managed root with its service key,
+// so a port opened by a grandchild (npm -> node) is attributed to the service.
+func propagateManaged(ps []Process) {
+	idx := make(map[uint32]int, len(ps))
+	for i := range ps {
+		idx[ps[i].PID] = i
+	}
+	for i := range ps {
+		if ps[i].Managed != "" {
+			continue
+		}
+		cur, hops := ps[i].PPID, 0
+		for hops < 32 {
+			j, ok := idx[cur]
+			if !ok || cur == ps[j].PPID {
+				break
+			}
+			if ps[j].Managed != "" && !ps[j].StartTime.After(ps[i].StartTime) {
+				ps[i].Managed = ps[j].Managed
+				break
+			}
+			cur = ps[j].PPID
+			hops++
+		}
+	}
 }
 
 // SnapshotWithCPU takes two samples gap apart so one-shot callers (the CLI)

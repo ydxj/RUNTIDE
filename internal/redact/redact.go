@@ -86,3 +86,6 @@ func Env(env []string) []string {
 	}
 	return out
 }
+
+// Validate reports whether p is a usable user-supplied pattern.
+func Validate(p string) error { _, err := regexp.Compile(p); return err }
