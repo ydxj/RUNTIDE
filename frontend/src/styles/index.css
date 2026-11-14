@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+[data-theme='light'] {
+  --bg: 243 243 243;
+  --surface: 255 255 255;
+  --subtle: 249 249 249;
+  --line: 229 229 229;
+  --ink: 26 26 26;
+  --muted: 96 96 96;
+  --accent: 15 108 189;
+  --accent-ink: 255 255 255;
+  --ok: 16 124 16;
+  --warn: 157 93 0;
+  --bad: 196 43 28;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: 32 32 32;
+  --surface: 43 43 43;
+  --subtle: 50 50 50;
+  --line: 62 62 62;
+  --ink: 255 255 255;
+  --muted: 170 170 170;
+  --accent: 96 205 255;
+  --accent-ink: 0 0 0;
+  --ok: 108 203 95;
+  --warn: 252 225 0;
+  --bad: 255 153 164;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg font-sans text-base text-ink antialiased;
+  margin: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+input,
+textarea,
+.selectable {
+  user-select: text;
+}
+
+*:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 1px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--line));
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--muted) / 0.6);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-in {
+  animation: fade-in 140ms ease-out;
+}
