@@ -5,6 +5,7 @@ package winapi
 import (
 	"fmt"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -16,33 +17,38 @@ var (
 	procSetConsoleCtrlHandler = modKernel32.NewProc("SetConsoleCtrlHandler")
 	procNtResumeProcess       = modNtdll.NewProc("NtResumeProcess")
 
-	consoleMu sync.Mutex
+	consoleMu   sync.Mutex
+	swallowOnce sync.Once
+	swallowCB   uintptr
 )
 
-// GracefulInterrupt asks the console processes sharing pid's (hidden) console
-// to stop by delivering CTRL_C (a console process ignores CTRL_C only if it opted out). Services are launched with their own
-// hidden console, so the event only reaches that service's processes.
+// GracefulInterrupt asks every process sharing pid's hidden console to stop by
+// delivering CTRL_BREAK. Services are launched with their own hidden console
+// (CREATE_NO_WINDOW), so only that service's processes are reached.
 //
-// The technique temporarily detaches the calling process from its own console
-// and attaches to the target's; it is serialised by a mutex. It returns an
-// error when the target has no console, in which case callers fall back to
+// The technique temporarily detaches the caller from its own console and
+// attaches to the target's, serialised by a mutex. While attached, a handler
+// swallows the event for the caller so RUNTIDE does not interrupt itself. It
+// returns an error when the target has no console; callers then fall back to
 // forceful termination after their grace period.
 func GracefulInterrupt(pid uint32) error {
 	consoleMu.Lock()
 	defer consoleMu.Unlock()
+	swallowOnce.Do(func() {
+		swallowCB = syscall.NewCallback(func(ctrlType uint32) uintptr { return 1 })
+	})
 	procFreeConsole.Call()
 	r, _, err := procAttachConsole.Call(uintptr(pid))
 	if r == 0 {
 		return fmt.Errorf("attach to console of pid %d: %w", pid, err)
 	}
-	// Make sure we do not receive our own event.
-	procSetConsoleCtrlHandler.Call(0, 1)
-	r2, _, err2 := procGenerateConsoleCtrlEvent.Call(uintptr(windows.CTRL_C_EVENT), 0)
-	time.Sleep(100 * time.Millisecond) // let the event be delivered before detaching
+	procSetConsoleCtrlHandler.Call(swallowCB, 1)
+	r2, _, err2 := procGenerateConsoleCtrlEvent.Call(uintptr(windows.CTRL_BREAK_EVENT), 0)
+	time.Sleep(150 * time.Millisecond) // let the event be delivered before detaching
 	procFreeConsole.Call()
-	procSetConsoleCtrlHandler.Call(0, 0)
+	procSetConsoleCtrlHandler.Call(swallowCB, 0)
 	if r2 == 0 {
-		return fmt.Errorf("deliver CTRL_C: %w", err2)
+		return fmt.Errorf("deliver CTRL_BREAK: %w", err2)
 	}
 	return nil
 }
