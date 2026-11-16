@@ -139,6 +139,14 @@ func Open(path string) (db *DB, recovered string, err error) {
 			return nil, recovered, err
 		}
 	}
+	bk, berr := backupBeforeMigration(d, path)
+	if berr != nil {
+		d.Close()
+		return nil, recovered, fmt.Errorf("pre-migration backup failed: %w", berr)
+	}
+	if bk != "" {
+		recovered += fmt.Sprintf("schema upgraded; previous database saved as %s", bk)
+	}
 	if err := migrate(d); err != nil {
 		d.Close()
 		return nil, recovered, err
