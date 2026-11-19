@@ -36,3 +36,6 @@ desktop.ini
 
 # Demo project generated for screenshots
 /.demo/
+
+# Deployment secrets
+/deployments/.env
