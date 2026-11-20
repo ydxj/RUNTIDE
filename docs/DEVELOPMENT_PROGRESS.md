@@ -1,6 +1,46 @@
 # Development progress
 
-Status of the 15 phases of the original mission, and an honest list of what is verified versus not.
+## 0.2: execution and verification platform
+
+| Area | Status | Evidence |
+| --- | --- | --- |
+| Migration audit and data preservation | Done | [MIGRATION_AUDIT.md](MIGRATION_AUDIT.md); `internal/database` migration + backup tests |
+| Task workspaces, lifecycle, approval | Done | `internal/domain`, `internal/execution` tests |
+| Git worktrees (never touch your branch/tree) | Done | `internal/execution` tests with real git repositories |
+| Capsules: managed, worktree | Done, tested | `internal/capsule`, `internal/execution` |
+| Capsules: Docker, WSL2 | **Partial**: wrapping + validation unit-tested; never run end to end | `internal/capsule` tests |
+| Execution Recorder (provenance, bounds, redaction, crash recovery, orphans) | Done | `internal/execution`, `internal/redact` tests |
+| File change intelligence | Done | `internal/files` tests (secret exclusion) |
+| Verification engine | Done | `internal/verification` tests |
+| Run Receipts: export, import, verify, inspect, HTML, signing | Done | `internal/receipts` tests |
+| Receipt comparison | Done (CLI, API, desktop) | `internal/receipts`, Vitest, Playwright screenshots |
+| Reproduction classes and replay | Done on the recording machine; **cross-machine replay not exercised** | `internal/receipts` tests |
+| PDF reports | **Not implemented** (HTML only) | n/a |
+| Self-hosted server (SQLite, auth, roles, rate limit, audit, OpenAPI, loopback default) | Done | `internal/server` tests, built binary smoke test |
+| Server on PostgreSQL | **Not implemented** | n/a |
+| Server web UI | **Not implemented** (API + CLI only) | n/a |
+| Dockerfile / compose | **Written, not built or run** locally (no Docker engine); CI job builds and probes it | `deployments/`, `.github/workflows/ci.yml` |
+| CLI-first commands | Done | `cmd/runtide` tests, `tests/scenario` |
+| MCP server (3 permission levels) | Done, tested with the Go SDK client and a real stdio handshake; **not run from Claude Code or Codex** | `internal/mcpserver` tests |
+| Desktop pages (Overview, Projects, Workspaces, Executions, Live Activity, Verification, Receipts, Compare, Services, Stacks, Environment, Integrations, Settings, plus the 0.1 machine pages) | Done | 33 Vitest tests, 7 Playwright tests, real screenshots |
+| Distributions: installer, portable, CLI zip, server zip | Built; installer **not** install-tested on a clean machine for 0.2 | `build/package.ps1` run |
+| Documentation | Done (this folder) | |
+
+Test results are in [TESTING.md](TESTING.md). Nothing was committed, staged or pushed by the assistant that built this.
+
+### Known limitations and open items (0.2)
+
+1. Docker/WSL isolation, the Docker deployment, Claude Code and Codex integrations are untested end to end (see above).
+2. Receipts are tamper-evident, not tamper-proof; redaction is pattern based. Review receipts before sharing.
+3. Replay supports Windows-recorded receipts only and needs a local git checkout containing the recorded commit.
+4. The sidebar scrolls on small windows (the last items need scrolling at 800 px height).
+5. Unsigned binaries; product name not legally cleared.
+6. `C:untide-demo` (screenshot demo data) must be deleted by the owner; the assistant's safety checks blocked deleting a root-level directory.
+
+---
+
+## 0.1: infrastructure control center
+Status of the 15 phases of the original 0.1 mission, and an honest list of what is verified versus not.
 
 | Phase | Status | Evidence |
 | --- | --- | --- |

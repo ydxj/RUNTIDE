@@ -1,6 +1,11 @@
-# Workspaces
+# Stacks (formerly "workspaces")
 
-A workspace describes a project's whole local environment. It is a YAML file; RUNTIDE validates it before storing
+> **0.2 naming:** what RUNTIDE 0.1 called a *workspace* is now a **stack**: a named group of long-running services (`runtide stack …`,
+> **Stacks** page). The word *workspace* now means an **execution workspace**, the environment of one task: see
+> [EXECUTION_CAPSULES.md](EXECUTION_CAPSULES.md), [EXECUTION_RECORDING.md](EXECUTION_RECORDING.md) and
+> [VERIFICATION.md](VERIFICATION.md). Stack files, their schema, stored data and approvals are unchanged.
+
+A stack describes a project's whole local environment. It is a YAML file; RUNTIDE validates it before storing
 it and before running it.
 
 ```yaml

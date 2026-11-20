@@ -122,7 +122,7 @@ func Run(ctx context.Context, spec Spec, sink Sink) Result {
 	if err != nil {
 		return Result{ExitCode: -1, Err: err}
 	}
-	defer job.Close()
+	defer func() { _ = job.Close() }()
 	outR, outW, err := os.Pipe()
 	if err != nil {
 		return Result{ExitCode: -1, Err: err}

@@ -1,6 +1,6 @@
 ; RUNTIDE installer (Inno Setup 6). Per-user by default: no administrator rights.
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.2.0"
 #endif
 
 [Setup]
@@ -36,6 +36,7 @@ Name: "addtopath"; Description: "Add the runtide command to my PATH (per-user)";
 [Files]
 Source: "..\dist\RUNTIDE-Desktop.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\runtide.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\runtide-mcp.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 

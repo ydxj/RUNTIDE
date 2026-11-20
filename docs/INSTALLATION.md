@@ -22,13 +22,25 @@ been tested on a separate clean Windows installation or a VM, and binaries are u
 
 ## Portable
 
-Unzip `RUNTIDE-<version>-portable.zip` anywhere. `RUNTIDE-Desktop.exe` is the app, `runtide.exe` the CLI. Data still
+Unzip `RUNTIDE-<version>-portable.zip` anywhere. `RUNTIDE-Desktop.exe` is the app, `runtide.exe` the CLI, `runtide-mcp.exe` the MCP server for coding agents. Data still
 lives in `%LOCALAPPDATA%\Runtide`; set the `RUNTIDE_HOME` environment variable to keep it elsewhere (for example next to
 the executables on a USB stick).
 
 ## CLI only
 
-`runtide.exe` is standalone. Optional shell completion: `runtide completion powershell | Out-String | Invoke-Expression`.
+`RUNTIDE-<version>-cli.zip` contains `runtide.exe` and `runtide-mcp.exe`. `runtide.exe` is standalone. Optional shell completion: `runtide completion powershell | Out-String | Invoke-Expression`.
+
+## Server
+
+`RUNTIDE-Server-<version>.zip` contains `runtide-server.exe`, `deployments/` (Dockerfile, compose file, `.env.example`) and
+[SELF_HOSTING.md](SELF_HOSTING.md). The server is optional and loopback-only until you configure it. Other prerequisites per
+feature (Git, Docker, WSL): [WINDOWS_SETUP.md](WINDOWS_SETUP.md).
+
+## Upgrading from 0.1
+
+Install over the old version. On first start RUNTIDE writes `backups\pre-migration-v1-<time>.db` before migrating; your stacks,
+services and history are kept. The 0.1 CLI group `workspace` is now `stack` (`runtide stack up …`); `workspace` manages task
+workspaces. See [DATABASE.md](DATABASE.md).
 
 ## Build from source
 

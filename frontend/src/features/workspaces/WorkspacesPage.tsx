@@ -40,7 +40,7 @@ import { TEMPLATE, WorkspaceEditor } from './WorkspaceEditor'
 const wsTone = (h: string) =>
   h === 'healthy' ? 'ok' : h === 'degraded' ? 'bad' : h === 'stopped' ? 'neutral' : 'warn'
 
-export function WorkspacesPage() {
+export function StacksPage() {
   const params = useUI((s) => s.pageParams)
   const ask = useUI((s) => s.ask)
   const toast = useUI((s) => s.toast)
@@ -108,7 +108,7 @@ export function WorkspacesPage() {
       })
       setAuthorize({ row: current, preview, action })
     } catch (e) {
-      reportError('Workspace definition is invalid', e)
+      reportError('Stack definition is invalid', e)
     }
   }
 
@@ -121,13 +121,13 @@ export function WorkspacesPage() {
       await list.reload()
       await run(action)
     } catch (e) {
-      reportError('Could not authorise workspace', e)
+      reportError('Could not authorise stack', e)
     }
   }
 
   const importFile = async () => {
     try {
-      const f = await native.pickFile('Import a workspace YAML file')
+      const f = await native.pickFile('Import a stack YAML file')
       if (!f) return
       const text = await native.readTextFile(f)
       setEditor({ yaml: text, root: f.replace(/[\\/][^\\/]*$/, ''), editing: false })
@@ -139,10 +139,10 @@ export function WorkspacesPage() {
   const exportYaml = async () => {
     if (!current) return
     try {
-      const p = await native.pickSaveFile('Export workspace', `${current.name}.yaml`)
+      const p = await native.pickSaveFile('Export stack', `${current.name}.yaml`)
       if (!p) return
       await native.writeTextFile(p, await call<string>('workspaces.export', { name: current.name }))
-      toast({ kind: 'success', title: 'Workspace exported', detail: p })
+      toast({ kind: 'success', title: 'Stack exported', detail: p })
     } catch (e) {
       reportError('Export failed', e)
     }
@@ -151,10 +151,10 @@ export function WorkspacesPage() {
   const remove = () => {
     if (!current) return
     ask({
-      title: `Delete workspace ${current.name}?`,
+      title: `Delete stack ${current.name}?`,
       danger: true,
-      confirmLabel: 'Delete workspace',
-      body: 'The workspace definition and its history are removed. Your project files are not touched. Running services must be stopped first.',
+      confirmLabel: 'Delete stack',
+      body: 'The stack definition and its history are removed. Your project files are not touched. Running services must be stopped first.',
       onConfirm: async () => {
         try {
           await call('workspaces.delete', { name: current.name })
@@ -173,8 +173,8 @@ export function WorkspacesPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
-        title="Workspaces"
-        subtitle="A workspace is a project's whole environment: services, dependencies and health."
+        title="Stacks"
+        subtitle="A stack is a named group of services started in dependency order, with health checks."
       >
         <Button icon={<FileUp className="h-3.5 w-3.5" />} onClick={() => void importFile()}>
           Import…
@@ -184,7 +184,7 @@ export function WorkspacesPage() {
           icon={<Plus className="h-3.5 w-3.5" />}
           onClick={() => setEditor({ yaml: TEMPLATE, root: '', editing: false })}
         >
-          New workspace
+          New stack
         </Button>
       </PageHeader>
       {list.loading && !list.data ? (
@@ -193,20 +193,20 @@ export function WorkspacesPage() {
         <ErrorState message={list.error} onRetry={() => void list.reload()} />
       ) : rows.length === 0 ? (
         <EmptyState
-          title="No workspaces yet"
+          title="No stacks yet"
           hint="Define your frontend, backend, database and workers once, then start them all in the right order."
           action={
             <Button
               variant="primary"
               onClick={() => setEditor({ yaml: TEMPLATE, root: '', editing: false })}
             >
-              Create your first workspace
+              Create your first stack
             </Button>
           }
         />
       ) : (
         <div className="flex min-h-0 flex-1 gap-3 px-6 pb-4">
-          <ul aria-label="Workspaces" className="w-60 shrink-0 space-y-1 overflow-auto">
+          <ul aria-label="Stacks" className="w-60 shrink-0 space-y-1 overflow-auto">
             {rows.map((r) => (
               <li key={r.name}>
                 <button
@@ -284,7 +284,7 @@ export function WorkspacesPage() {
                   <div className="selectable">{current.description || 'No description.'}</div>
                   <div className="selectable mt-0.5 font-mono text-xs">{current.root}</div>
                 </div>
-                <table aria-label="Workspace services" className="w-full text-sm">
+                <table aria-label="Stack services" className="w-full text-sm">
                   <thead>
                     <tr className="border-y border-line text-xs text-muted">
                       <th className="h-8 px-3 text-left">Order</th>
@@ -411,7 +411,7 @@ export function WorkspacesPage() {
       )}
       {authorize && (
         <Modal
-          title={`Authorise ${authorize.row.name} to run?`}
+          title={`Authorise stack ${authorize.row.name} to run?`}
           width="max-w-2xl"
           onClose={() => setAuthorize(null)}
           footer={
@@ -428,7 +428,7 @@ export function WorkspacesPage() {
           }
         >
           <p className="mb-2 text-sm">
-            Starting this workspace will run the following commands on this computer, as you:
+            Starting this stack will run the following commands on this computer, as you:
           </p>
           <ul className="selectable space-y-1 rounded border border-line bg-subtle p-2 font-mono text-xs">
             {authorize.preview.commands.map((c) => (

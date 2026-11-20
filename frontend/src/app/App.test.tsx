@@ -104,10 +104,10 @@ describe('App shell', () => {
     await waitFor(() => expect(engine.calls.some((c) => c.method === 'services.start')).toBe(true))
   })
 
-  it('applies the dark theme and Ctrl+number shortcuts', async () => {
+  it('applies the dark theme and Ctrl+number shortcuts (Ctrl+4 opens Executions)', async () => {
     render(<App />)
-    await userEvent.keyboard('{Control>}3{/Control}')
-    await waitFor(() => expect(useUI.getState().page).toBe('ports'))
+    await userEvent.keyboard('{Control>}4{/Control}')
+    await waitFor(() => expect(useUI.getState().page).toBe('executions'))
     useUI.getState().setTheme('dark')
     await waitFor(() => expect(document.documentElement.dataset['theme']).toBe('dark'))
   })

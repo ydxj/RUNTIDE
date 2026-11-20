@@ -1,14 +1,18 @@
 <#
 .SYNOPSIS
   Builds RUNTIDE release artifacts into .\dist:
-    runtide.exe                      standalone CLI
+    runtide.exe                      CLI (also the background engine and `runtide server` launcher)
+    runtide-mcp.exe                  MCP server for coding agents
+    runtide-server.exe               self-hosted receipt server
     RUNTIDE-Desktop.exe              desktop app (Wails)
-    RUNTIDE-<ver>-portable.zip
-    RUNTIDE-<ver>-setup.exe  installer (needs Inno Setup 6: ISCC.exe)
+    RUNTIDE-<ver>-portable.zip       desktop + CLI + MCP, no installer
+    RUNTIDE-<ver>-cli.zip            CLI + MCP only
+    RUNTIDE-Server-<ver>.zip         server binary + Dockerfile + compose files
+    RUNTIDE-<ver>-setup.exe          installer (needs Inno Setup 6: ISCC.exe)
   Nothing is signed or published.
 #>
 param(
-  [string]$Version = "0.1.0",
+  [string]$Version = "0.2.0",
   [switch]$SkipInstaller
 )
 $ErrorActionPreference = 'Stop'
@@ -19,21 +23,29 @@ $ld = "-s -w -X github.com/runtide/runtide/internal/app.Version=$Version"
 New-Item -ItemType Directory -Force dist | Out-Null
 Remove-Item dist\* -Recurse -Force -ErrorAction SilentlyContinue
 
-Write-Host "== CLI"
-go build -ldflags $ld -o dist\runtide.exe .\cmd\runtide
-if ($LASTEXITCODE) { throw "CLI build failed" }
+foreach ($b in @(@('runtide', 'cmd\runtide'), @('runtide-mcp', 'cmd\runtide-mcp'), @('runtide-server', 'cmd\runtide-server'))) {
+  Write-Host "== $($b[0])"
+  go build -trimpath -ldflags $ld -o "dist\$($b[0]).exe" ".\$($b[1])"
+  if ($LASTEXITCODE) { throw "$($b[0]) build failed" }
+}
 
 Write-Host "== Desktop (Wails)"
 wails build -clean -platform windows/amd64 -ldflags $ld
 if ($LASTEXITCODE) { throw "wails build failed" }
 Copy-Item build\bin\RUNTIDE-Desktop.exe dist\RUNTIDE-Desktop.exe
 
-Write-Host "== Portable zip"
-$stage = Join-Path $env:TEMP "runtide-portable-$Version"
-Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory $stage | Out-Null
-Copy-Item dist\RUNTIDE-Desktop.exe, dist\runtide.exe, LICENSE, README.md $stage
-Compress-Archive -Path "$stage\*" -DestinationPath "dist\RUNTIDE-$Version-portable.zip" -Force
+function New-Zip($name, $files, $extraDirs) {
+  $stage = Join-Path $env:TEMP "runtide-$name-$Version"
+  Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+  New-Item -ItemType Directory $stage | Out-Null
+  Copy-Item $files $stage
+  foreach ($d in $extraDirs) { Copy-Item $d (Join-Path $stage (Split-Path $d -Leaf)) -Recurse }
+  Compress-Archive -Path "$stage\*" -DestinationPath "dist\$name.zip" -Force
+}
+Write-Host "== Zips"
+New-Zip "RUNTIDE-$Version-portable" @('dist\RUNTIDE-Desktop.exe', 'dist\runtide.exe', 'dist\runtide-mcp.exe', 'LICENSE', 'README.md') @()
+New-Zip "RUNTIDE-$Version-cli" @('dist\runtide.exe', 'dist\runtide-mcp.exe', 'LICENSE', 'README.md') @()
+New-Zip "RUNTIDE-Server-$Version" @('dist\runtide-server.exe', 'LICENSE', 'docs\SELF_HOSTING.md') @('deployments')
 
 if (-not $SkipInstaller) {
   $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source

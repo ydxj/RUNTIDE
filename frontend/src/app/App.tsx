@@ -11,7 +11,15 @@ import { OverviewPage } from '../features/overview/OverviewPage'
 import { ProcessesPage } from '../features/processes/ProcessesPage'
 import { PortsPage } from '../features/ports/PortsPage'
 import { ServicesPage } from '../features/services/ServicesPage'
-import { WorkspacesPage } from '../features/workspaces/WorkspacesPage'
+import { StacksPage } from '../features/workspaces/WorkspacesPage'
+import { ProjectsPage } from '../features/tasks/ProjectsPage'
+import { TaskWorkspacesPage } from '../features/tasks/TaskWorkspacesPage'
+import { ExecutionsPage } from '../features/tasks/ExecutionsPage'
+import { LivePage } from '../features/tasks/LivePage'
+import { VerificationPage } from '../features/tasks/VerificationPage'
+import { ReceiptsPage } from '../features/tasks/ReceiptsPage'
+import { ComparePage } from '../features/tasks/ComparePage'
+import { IntegrationsPage } from '../features/tasks/IntegrationsPage'
 import { LogsPage } from '../features/logs/LogsPage'
 import { ResourcesPage } from '../features/resources/ResourcesPage'
 import { EnvironmentPage } from '../features/environment/EnvironmentPage'
@@ -24,7 +32,15 @@ const PAGES: Record<PageId, () => JSX.Element | null> = {
   processes: ProcessesPage,
   ports: PortsPage,
   services: ServicesPage,
-  workspaces: WorkspacesPage,
+  stacks: StacksPage,
+  projects: ProjectsPage,
+  workspaces: TaskWorkspacesPage,
+  executions: ExecutionsPage,
+  live: LivePage,
+  verification: VerificationPage,
+  receipts: ReceiptsPage,
+  compare: ComparePage,
+  integrations: IntegrationsPage,
   logs: LogsPage,
   resources: ResourcesPage,
   environment: EnvironmentPage,
@@ -100,29 +116,39 @@ export function App() {
           <span className="flex-1 text-left">Search</span>
           <kbd className="rounded border border-line px-1 text-[11px]">Ctrl K</kbd>
         </button>
-        {NAV.map((n, i) => {
-          const active = n.id === page
-          return (
-            <button
-              key={n.id}
-              type="button"
-              aria-current={active ? 'page' : undefined}
-              onClick={() => go(n.id)}
-              title={`${n.label} (Ctrl+${i + 1})`}
-              className={cx(
-                'relative flex h-9 items-center gap-3 rounded-md px-2.5 text-sm',
-                active
-                  ? 'bg-surface font-medium shadow-[0_0_0_1px_rgb(var(--line))]'
-                  : 'hover:bg-surface/70',
-              )}
-            >
-              {active && <span className="absolute left-0 h-4 w-[3px] rounded-full bg-accent" />}
-              <n.icon className={cx('h-4 w-4', active && 'text-accent')} aria-hidden />
-              {n.label}
-            </button>
-          )
-        })}
-        <div className="mt-auto px-2.5 pt-3 text-xs text-muted">
+        <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
+          {NAV.map((n, i) => {
+            const active = n.id === page
+            return (
+              <div key={n.id} className="flex flex-col gap-0.5">
+                {(i === 0 || NAV[i - 1]?.group !== n.group) && (
+                  <div className="px-2.5 pt-2 pb-1 text-[11px] font-semibold tracking-wide text-muted uppercase">
+                    {n.group}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => go(n.id)}
+                  title={i < 9 ? `${n.label} (Ctrl+${i + 1})` : n.label}
+                  className={cx(
+                    'relative flex h-8 items-center gap-3 rounded-md px-2.5 text-sm',
+                    active
+                      ? 'bg-surface font-medium shadow-[0_0_0_1px_rgb(var(--line))]'
+                      : 'hover:bg-surface/70',
+                  )}
+                >
+                  {active && (
+                    <span className="absolute left-0 h-4 w-[3px] rounded-full bg-accent" />
+                  )}
+                  <n.icon className={cx('h-4 w-4', active && 'text-accent')} aria-hidden />
+                  {n.label}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+        <div className="px-2.5 pt-3 px-2.5 pt-3 text-xs text-muted">
           {inDesktop() ? 'Local engine' : 'No engine connected'}
         </div>
       </nav>

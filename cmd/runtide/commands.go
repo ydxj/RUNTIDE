@@ -41,7 +41,7 @@ Run without arguments for a status summary.`,
 	root.AddCommand(
 		versionCmd(), statusCmd(), processesCmd(), killCmd(), portsCmd(), servicesCmd(),
 		startStopCmd("start", "Start a service"), startStopCmd("stop", "Stop a service"), startStopCmd("restart", "Restart a service"),
-		logsCmd(), workspacesCmd(), workspaceCmd(), doctorCmd(), envCmd(), toolsCmd(), configCmd(), daemonCmd(),
+		logsCmd(), stacksCmd(), stackCmd(), projectCmd(), workspaceCmd(), runCmd(), receiptCmd(), serverCmd(), doctorCmd(), envCmd(), toolsCmd(), configCmd(), daemonCmd(),
 		dockerCmd(), wslCmd(),
 	)
 	return root
@@ -269,7 +269,7 @@ func servicesCmd() *cobra.Command {
 			}
 			table([]string{"SERVICE", "TYPE", "STATE", "HEALTH", "PID", "UPTIME"}, rows)
 			if len(rows) == 0 {
-				fmt.Println("No services defined. Create a workspace file and run `runtide workspace import`.")
+				fmt.Println("No services defined. Create a workspace file and run `runtide stack import`.")
 			}
 			return nil
 		})

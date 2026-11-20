@@ -313,8 +313,8 @@ export function ServicesPage() {
                 </>
               )}
               {selected.workspace && (
-                <Button onClick={() => go('workspaces', { name: selected.workspace })}>
-                  Open workspace
+                <Button onClick={() => go('stacks', { name: selected.workspace })}>
+                  Open stack
                 </Button>
               )}
             </div>

@@ -413,6 +413,9 @@ func (e *Engine) Dispatch(ctx context.Context, method string, raw json.RawMessag
 		}
 		return nil, nil
 	}
+	if res, handled, err := e.dispatchExec(ctx, method, raw); handled {
+		return res, err
+	}
 	return nil, fmt.Errorf("unknown method %q", method)
 }
 

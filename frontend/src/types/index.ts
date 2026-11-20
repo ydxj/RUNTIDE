@@ -316,6 +316,7 @@ export interface Settings {
   minimizeToTray: boolean
   notifications: boolean
   startWithWindows: boolean
+  trustedKeys: string[] | null
   stopServicesOnExit: boolean
 }
 
@@ -334,4 +335,260 @@ export interface RunRecord {
   exitCode: number | null
   reason: string
   pid: number
+}
+
+// ---- execution platform (0.2) ----
+
+export type RunState =
+  | 'CREATED'
+  | 'CONFIGURING'
+  | 'READY'
+  | 'RUNNING'
+  | 'VERIFYING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'INTERRUPTED'
+  | 'REQUIRES_ATTENTION'
+
+export interface Project {
+  id: string
+  name: string
+  root: string
+  description: string
+  gitRoot?: string
+  createdAt: string
+}
+
+export interface TaskWorkspace {
+  id: string
+  projectId: string
+  name: string
+  task: string
+  state: RunState
+  isolation: 1 | 2 | 3 | 4
+  dir: string
+  sourceDir: string
+  worktree: boolean
+  configYaml: string
+  approved: boolean
+  createdAt: string
+  updatedAt: string
+  finalStatus?: string
+}
+
+export interface WorkspacePlan {
+  project: string
+  name: string
+  isolation: string
+  dir: string
+  creates: string[] | null
+  warnings: string[] | null
+  blockers: string[] | null
+}
+
+export interface Execution {
+  id: string
+  workspaceId: string
+  projectId: string
+  task: string
+  state: RunState
+  isolation: number
+  startedAt?: string
+  endedAt?: string
+  createdAt: string
+  runtideVersion: string
+  error?: string
+  verification?: string
+}
+
+export interface ExecEvent {
+  id: string
+  executionId: string
+  seq: number
+  time: string
+  type: string
+  source: 'observed' | 'reported' | 'inferred'
+  severity: 'info' | 'warn' | 'error'
+  subject?: string
+  data?: Record<string, unknown>
+}
+
+export interface ExecCommand {
+  id: string
+  seq: number
+  kind: string
+  name: string
+  executable: string
+  args: string[] | null
+  cwd: string
+  startedAt: string
+  endedAt?: string
+  exitCode?: number
+  pid?: number
+  cancelled: boolean
+  timedOut: boolean
+  truncated: boolean
+  redacted: boolean
+  stdoutBytes: number
+  stderrBytes: number
+  error?: string
+}
+
+export interface VerificationResult {
+  seq: number
+  name: string
+  description?: string
+  type: string
+  status: 'passed' | 'failed' | 'skipped' | 'timed_out' | 'not_applicable'
+  required: boolean
+  durationMs: number
+  exitCode?: number
+  output?: string
+  error?: string
+  needs?: string[]
+  evidence?: string[]
+}
+
+export interface FileChange {
+  path: string
+  change: 'added' | 'modified' | 'deleted' | 'renamed'
+  oldPath?: string
+  sizeBefore: number
+  sizeAfter: number
+}
+
+export interface ExecutionDetail {
+  execution: Execution
+  workspace: TaskWorkspace | null
+  project: Project | null
+  environment: {
+    os?: string
+    arch?: string
+    isolation?: string
+    tools?: { id: string; name: string; version: string; onPath: boolean }[]
+    git?: { head?: string; branch?: string; dirty?: boolean }
+    envKeys?: string[]
+  }
+  commands: ExecCommand[]
+  processes: { commandId: string; pid: number; exe: string; startedAt: string; endedAt?: string }[]
+  services: {
+    name: string
+    health: string
+    healthDetail: string
+    restarts: number
+    lastState: string
+  }[]
+  verification: VerificationResult[]
+  verificationSummary: { overall: string; counts: Record<string, number>; reasons?: string[] }
+  fileChanges: FileChange[]
+  eventCount: number
+  active: boolean
+  durationMs: number
+}
+
+export interface OutputLine {
+  id: number
+  commandId: string
+  time: string
+  stream: 'stdout' | 'stderr'
+  line: string
+}
+
+export interface ReceiptRecord {
+  id: string
+  executionId: string
+  projectName: string
+  path: string
+  sha256: string
+  size: number
+  imported: boolean
+  status: string
+  signedBy?: string
+  createdAt: string
+}
+
+export interface ReceiptVerification {
+  path: string
+  sha256: string
+  valid: boolean
+  problems: string[] | null
+  warnings: string[] | null
+  filesChecked: number
+  manifest?: {
+    executionId: string
+    projectName: string
+    task: string
+    status: string
+    verification: string
+    isolation: string
+    reproducibility: string
+    runtideVersion: string
+    createdAt: string
+    redaction: {
+      commandsWithMaskedArgs: number
+      sensitiveFilesExcluded: number
+      diffsIncluded: boolean
+    }
+  }
+  signature?: { fingerprint: string; valid: boolean; trusted: boolean }
+  authenticity: string
+}
+
+export interface ReceiptInspect {
+  receipt: {
+    manifest: NonNullable<ReceiptVerification['manifest']>
+    reproduction: { class: string; reasons: string[]; missing: string[] }
+    commands: ExecCommand[]
+    events: ExecEvent[]
+    fileChanges: FileChange[]
+    verification: { summary: { overall: string }; results: VerificationResult[] }
+    sha256: string
+  }
+  verification: ReceiptVerification
+  path: string
+}
+
+export interface Comparison {
+  a: { executionId: string; status: string; verification: string; task: string }
+  b: { executionId: string; status: string; verification: string; task: string }
+  sameProject: boolean
+  durations: { aMs: number; bMs: number; deltaMs: number }
+  environment: {
+    changed: string[] | null
+    tools: { id: string; a: string; b: string; change: string }[] | null
+  }
+  commands: {
+    removed: string[] | null
+    new: string[] | null
+    changed:
+      | {
+          command: string
+          exitA: string
+          exitB: string
+          durationAMs: number
+          durationBMs: number
+          output: string
+        }[]
+      | null
+    unchanged: number
+  }
+  verification: {
+    overall: [string, string]
+    newFailures: string[] | null
+    resolvedFailures: string[] | null
+    statusChanges: { name: string; a: string; b: string }[] | null
+    onlyInA: string[] | null
+    onlyInB: string[] | null
+  }
+  files: {
+    onlyInA: string[] | null
+    onlyInB: string[] | null
+    changedContent: string[] | null
+    identical: number
+  }
+  services: { name: string; a: string; b: string }[] | null
+  failureEvents: { new: string[] | null; resolved: string[] | null }
+  missingEvidence: string[] | null
+  notes: string[] | null
 }

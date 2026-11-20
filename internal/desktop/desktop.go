@@ -263,13 +263,17 @@ func (a *App) forwardEvents() {
 			}
 		}()
 	}
-	var logs []json.RawMessage
+	var logs, outs []json.RawMessage
 	t := time.NewTicker(150 * time.Millisecond)
 	defer t.Stop()
 	flush := func() {
 		if len(logs) > 0 {
 			wruntime.EventsEmit(a.ctx, "log-batch", logs)
 			logs = nil
+		}
+		if len(outs) > 0 {
+			wruntime.EventsEmit(a.ctx, "exec-output-batch", outs)
+			outs = nil
 		}
 	}
 	for {
@@ -281,6 +285,11 @@ func (a *App) forwardEvents() {
 			case "log":
 				logs = append(logs, e.Data)
 				if len(logs) >= 500 {
+					flush()
+				}
+			case "exec.output":
+				outs = append(outs, e.Data)
+				if len(outs) >= 500 {
 					flush()
 				}
 			case "notify":

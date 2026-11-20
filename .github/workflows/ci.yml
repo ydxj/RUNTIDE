@@ -27,16 +27,27 @@ jobs:
         shell: bash
         run: test -z "$(gofmt -l cmd internal build main.go)" || (gofmt -l cmd internal build main.go; exit 1)
       - name: go vet
-        run: go vet ./cmd/... ./internal/... ./tests/e2ehost/... ./build/... .
+        run: go vet ./cmd/... ./internal/... ./tests/e2ehost/... ./tests/scenario/... ./build/... .
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
-          args: ./cmd/... ./internal/... ./tests/e2ehost/... ./build/... .
+          args: ./cmd/... ./internal/... ./tests/e2ehost/... ./tests/scenario/... ./build/... .
       - name: go test
-        run: go test ./cmd/... ./internal/... -count=1 -timeout 10m
-      - name: Build CLI
-        run: go build -ldflags "-s -w" -o dist/runtide.exe ./cmd/runtide
+        run: go test ./cmd/... ./internal/... ./tests/e2ehost/... ./tests/scenario/... -count=1 -timeout 15m
+      - name: Build binaries
+        shell: bash
+        run: |
+          for b in runtide runtide-mcp runtide-server; do
+            go build -ldflags "-s -w" -o dist/$b.exe ./cmd/$b
+          done
+      - name: Build e2e host
+        run: go build -o dist/e2ehost.exe ./tests/e2ehost
+      - name: Playwright end-to-end tests
+        working-directory: tests/e2e
+        run: |
+          npm ci
+          npx playwright test --reporter=line
 
   frontend:
     runs-on: ubuntu-latest
@@ -55,3 +66,15 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm test
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the server image
+        run: docker build -f deployments/Dockerfile -t runtide-server:ci .
+      - name: Server starts and answers its health endpoint
+        run: |
+          docker run -d --name rt -p 127.0.0.1:8484:8484 -e RUNTIDE_SERVER_BEHIND_TLS_PROXY=1 runtide-server:ci
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8484/healthz && exit 0; sleep 1; done
+          docker logs rt; exit 1

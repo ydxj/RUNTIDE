@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { usePoll } from '../../hooks/usePoll'
 import { call } from '../../services/api'
 import { bytes, since, pct } from '../../services/format'
-import type { Overview, ResourceSample } from '../../types'
+import type { Execution, Overview, ResourceSample } from '../../types'
 import { useUI } from '../../stores/ui'
 import {
   Badge,
@@ -45,6 +45,12 @@ export function OverviewPage() {
   const go = useUI((s) => s.go)
   const ov = usePoll(() => call<Overview>('overview'), [])
   const hist = usePoll(() => call<ResourceSample[]>('resources.history', { n: 120 }), [])
+  const runs = usePoll(() => call<Execution[]>('runs.list', { limit: 50 }), [], 5)
+  const xs = runs.data ?? []
+  const active = xs.filter((x) => x.state === 'RUNNING' || x.state === 'VERIFYING').length
+  const failed = xs.filter((x) => x.state === 'FAILED' || x.state === 'INTERRUPTED').length
+  const verified = xs.filter((x) => x.verification === 'passed').length
+  const unverified = xs.length - verified
 
   if (ov.error && !ov.data) return <ErrorState message={ov.error} onRetry={ov.reload} />
   if (!ov.data) return <Spinner label="Reading machine state" />
@@ -85,6 +91,35 @@ export function OverviewPage() {
             onClick={() => go('services')}
           />
         </div>
+
+        {runs.data && (
+          <div className="grid grid-cols-4 gap-3" aria-label="Execution summary">
+            <Stat
+              label="Active executions"
+              value={String(active)}
+              sub="running or verifying"
+              onClick={() => go('live')}
+            />
+            <Stat
+              label="Recent executions"
+              value={String(runs.data.length)}
+              sub="latest 50"
+              onClick={() => go('executions')}
+            />
+            <Stat
+              label="Failed or interrupted"
+              value={String(failed)}
+              sub="need a look"
+              onClick={() => go('executions')}
+            />
+            <Stat
+              label="Verified"
+              value={String(verified)}
+              sub={`${unverified} without a passing verdict`}
+              onClick={() => go('verification')}
+            />
+          </div>
+        )}
 
         <div className="grid grid-cols-3 gap-3">
           <Panel title="CPU & memory" className="col-span-2">
@@ -152,16 +187,16 @@ export function OverviewPage() {
 
         <div className="grid grid-cols-2 gap-3">
           <Panel
-            title="Workspaces"
+            title="Stacks"
             actions={
-              <button className="px-2 text-xs text-accent" onClick={() => go('workspaces')}>
+              <button className="px-2 text-xs text-accent" onClick={() => go('stacks')}>
                 Manage
               </button>
             }
           >
             {(o.workspaces ?? []).length === 0 ? (
               <div className="p-4 text-sm text-muted">
-                No workspaces yet. Create one on the Workspaces page.
+                No stacks yet. Create one on the Stacks page.
               </div>
             ) : (
               <ul className="divide-y divide-line text-sm">

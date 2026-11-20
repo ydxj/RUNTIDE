@@ -73,7 +73,7 @@ export function WorkspaceEditor({
       await call('workspaces.save', { yaml, root, replace: editing || p.exists })
       toast({
         kind: 'success',
-        title: `Workspace ${p.name} saved`,
+        title: `Stack ${p.name} saved`,
         detail: 'Nothing was started. You will be asked to authorise execution when you run it.',
       })
       onSaved(p.name)
@@ -93,7 +93,7 @@ export function WorkspaceEditor({
 
   return (
     <Modal
-      title={editing ? 'Edit workspace' : 'New workspace'}
+      title={editing ? 'Edit stack' : 'New stack'}
       width="max-w-3xl"
       onClose={onClose}
       footer={
@@ -105,7 +105,7 @@ export function WorkspaceEditor({
             onClick={() => void save()}
             disabled={!yaml.trim() || !root.trim()}
           >
-            Save workspace
+            Save stack
           </Button>
         </>
       }
@@ -127,11 +127,9 @@ export function WorkspaceEditor({
         </div>
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-medium text-muted">
-          Workspace definition (YAML)
-        </span>
+        <span className="mb-1 block text-xs font-medium text-muted">Stack definition (YAML)</span>
         <textarea
-          aria-label="Workspace YAML"
+          aria-label="Stack YAML"
           value={yaml}
           onChange={(e) => {
             setYaml(e.target.value)

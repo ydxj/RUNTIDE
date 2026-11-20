@@ -86,6 +86,7 @@ var execTransitions = map[State][]State{
 // run again; every reopen is recorded as an event by the caller.
 var workspaceExtra = map[State][]State{
 	StateCompleted:         {StateReady},
+	StateCancelled:         {StateReady}, // a cancelled run does not destroy the workspace
 	StateFailed:            {StateReady, StateCancelled},
 	StateInterrupted:       {StateReady, StateCancelled, StateFailed},
 	StateRequiresAttention: {StateReady, StateCancelled, StateFailed},

@@ -1,0 +1,28 @@
+# Self-hosted RUNTIDE receipt server.
+#   cp deployments/.env.example deployments/.env   # then edit
+#   docker compose -f deployments/docker-compose.yml --env-file deployments/.env up -d --build
+#
+# The port is published on the host's loopback only. To expose the server, put a
+# TLS-terminating reverse proxy in front of it (docs/SELF_HOSTING.md); the server
+# refuses remote plain HTTP unless RUNTIDE_SERVER_BEHIND_TLS_PROXY=1 is set.
+services:
+  runtide-server:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    image: runtide-server:0.2.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${RUNTIDE_PORT:-8484}:8484"
+    environment:
+      RUNTIDE_SERVER_BEHIND_TLS_PROXY: "${RUNTIDE_SERVER_BEHIND_TLS_PROXY:-1}"
+      RUNTIDE_ADMIN_PASSWORD: "${RUNTIDE_ADMIN_PASSWORD:-}"
+    volumes:
+      - runtide-data:/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  runtide-data:

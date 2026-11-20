@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/runtide/runtide/internal/capsule"
 	"github.com/runtide/runtide/internal/config"
 	"github.com/runtide/runtide/internal/health"
 	"github.com/runtide/runtide/internal/logs"
@@ -217,6 +218,9 @@ func resolveCommand(cmd, workdir string) (string, error) {
 
 func buildEnv(spec config.ServiceSpec, root string) ([]string, error) {
 	env := os.Environ()
+	if spec.CleanEnv {
+		env = capsule.BuildEnv(nil, false)
+	}
 	extra := map[string]string{}
 	if spec.EnvFile != "" {
 		p, err := config.ResolveDir(root, spec.EnvFile)

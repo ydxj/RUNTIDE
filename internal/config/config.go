@@ -51,6 +51,7 @@ type ServiceSpec struct {
 	WorkingDirectory string            `yaml:"working_directory,omitempty" json:"workingDirectory"`
 	Env              map[string]string `yaml:"env,omitempty" json:"env"`
 	EnvFile          string            `yaml:"env_file,omitempty" json:"envFile,omitempty"`
+	CleanEnv         bool              `yaml:"clean_env,omitempty" json:"cleanEnv,omitempty"` // start with a filtered environment instead of the whole parent environment
 	DependsOn        []string          `yaml:"depends_on,omitempty" json:"dependsOn"`
 	Health           *HealthSpec       `yaml:"healthcheck,omitempty" json:"health,omitempty"`
 	Restart          RestartSpec       `yaml:"restart,omitempty" json:"restart"`

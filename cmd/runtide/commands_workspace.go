@@ -29,8 +29,8 @@ type wsRow struct {
 	Total   int    `json:"total"`
 }
 
-func workspacesCmd() *cobra.Command {
-	return &cobra.Command{Use: "workspaces", Short: "List workspaces", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error {
+func stacksCmd() *cobra.Command {
+	return &cobra.Command{Use: "stacks", Short: "List stacks (named groups of services)", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error {
 		return withBackend(func(b backend) error {
 			ws, err := call[[]wsRow](b, "workspaces.list", nil)
 			if err != nil {
@@ -49,7 +49,7 @@ func workspacesCmd() *cobra.Command {
 			}
 			table([]string{"WORKSPACE", "HEALTH", "RUNNING", "APPROVED", "ROOT"}, rows)
 			if len(rows) == 0 {
-				fmt.Println("No workspaces yet. Import one with `runtide workspace import <file.yaml>`.")
+				fmt.Println("No stacks yet. Import one with `runtide stack import <file.yaml>`.")
 			}
 			return nil
 		})
@@ -91,8 +91,8 @@ func runWithProgress(c *api.Client, method, name string, only []string) error {
 	return c.Call(method, map[string]any{"name": name, "only": only}, nil)
 }
 
-func workspaceCmd() *cobra.Command {
-	ws := &cobra.Command{Use: "workspace", Short: "Manage a workspace (a project's whole set of services)"}
+func stackCmd() *cobra.Command {
+	ws := &cobra.Command{Use: "stack", Short: "Manage a stack: a named group of services started in dependency order"}
 
 	var yes bool
 	up := &cobra.Command{Use: "up <name> [service...]", Short: "Start a workspace in dependency order", Args: cobra.MinimumNArgs(1),
@@ -107,7 +107,7 @@ func workspaceCmd() *cobra.Command {
 				return err
 			}
 			if !rec.Approved {
-				fmt.Printf("Workspace %q has not been authorised to run. It will execute these commands on this machine:\n\n", name)
+				fmt.Printf("Stack %q has not been authorised to run. It will execute these commands on this machine:\n\n", name)
 				pv, err := call[workspaces.Preview](&remoteBackend{c}, "workspaces.inspect", map[string]string{"yaml": rec.YAML, "root": rec.Root})
 				if err != nil {
 					return err
@@ -194,7 +194,7 @@ func workspaceCmd() *cobra.Command {
 
 	var root string
 	var replace bool
-	imp := &cobra.Command{Use: "import <file.yaml>", Short: "Validate and register a workspace file (does not run anything)", Args: cobra.ExactArgs(1),
+	imp := &cobra.Command{Use: "import <file.yaml>", Short: "Validate and register a stack file (does not run anything)", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			file, _ := filepath.Abs(args[0])
 			data, err := os.ReadFile(file)
@@ -210,7 +210,7 @@ func workspaceCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Printf("Workspace %q (root %s) defines %d service(s):\n", pv.Name, pv.Root, len(pv.Services))
+				fmt.Printf("Stack %q (root %s) defines %d service(s):\n", pv.Name, pv.Root, len(pv.Services))
 				for _, c := range pv.Commands {
 					fmt.Println("  ", c)
 				}
@@ -218,7 +218,7 @@ func workspaceCmd() *cobra.Command {
 					fmt.Println(color("33", "warning: ") + w)
 				}
 				if pv.Exists && !replace {
-					return fmt.Errorf("workspace %q already exists; use --replace to overwrite it", pv.Name)
+					return fmt.Errorf("stack %q already exists; use --replace to overwrite it", pv.Name)
 				}
 				if !yes {
 					ok, err := confirm("Register this workspace? (Nothing will be started.)")
@@ -232,7 +232,7 @@ func workspaceCmd() *cobra.Command {
 				if _, err := call[workspaces.Record](b, "workspaces.save", map[string]any{"yaml": string(data), "root": root, "replace": replace}); err != nil {
 					return err
 				}
-				fmt.Printf("Registered. Start it with: runtide workspace up %s\n", pv.Name)
+				fmt.Printf("Registered. Start it with: runtide stack up %s\n", pv.Name)
 				return nil
 			})
 		}}

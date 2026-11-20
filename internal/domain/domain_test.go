@@ -44,11 +44,12 @@ func TestExecutionLifecycle(t *testing.T) {
 	}
 }
 
-func TestWorkspaceCanBeReopenedButNotCancelledOnes(t *testing.T) {
+func TestWorkspaceCanBeReopened(t *testing.T) {
 	assert.True(t, CanTransitionWorkspace(StateCompleted, StateReady))
 	assert.True(t, CanTransitionWorkspace(StateInterrupted, StateReady))
 	assert.True(t, CanTransitionWorkspace(StateRequiresAttention, StateReady))
-	assert.False(t, CanTransitionWorkspace(StateCancelled, StateReady))
+	assert.True(t, CanTransitionWorkspace(StateCancelled, StateReady), "a cancelled run does not destroy the workspace")
+	assert.False(t, CanTransitionExecution(StateCancelled, StateReady), "but executions never come back")
 	assert.False(t, CanTransitionWorkspace(StateCompleted, StateRunning))
 	assert.False(t, CanTransitionWorkspace(StateCreated, StateReady))
 }

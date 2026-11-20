@@ -47,6 +47,7 @@ const shim = `
   es.onmessage = (m) => {
     const ev = JSON.parse(m.data);
     if (ev.topic === 'log') { (listeners['log-batch'] || []).forEach((cb) => cb([ev.data])); }
+    else if (ev.topic === 'exec.output') { (listeners['exec-output-batch'] || []).forEach((cb) => cb([ev.data])); }
     else { (listeners['runtide'] || []).forEach((cb) => cb(ev.topic, ev.data)); }
   };
 })();

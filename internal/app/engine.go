@@ -16,18 +16,20 @@ import (
 
 	"github.com/runtide/runtide/internal/config"
 	"github.com/runtide/runtide/internal/database"
+	"github.com/runtide/runtide/internal/execution"
 	"github.com/runtide/runtide/internal/logs"
 	"github.com/runtide/runtide/internal/paths"
 	winapi "github.com/runtide/runtide/internal/platform/windows"
 	"github.com/runtide/runtide/internal/process"
 	"github.com/runtide/runtide/internal/redact"
 	"github.com/runtide/runtide/internal/resources"
+	"github.com/runtide/runtide/internal/store"
 	"github.com/runtide/runtide/internal/supervisor"
 	"github.com/runtide/runtide/internal/workspaces"
 )
 
 // Version is injected at build time with -ldflags.
-var Version = "0.1.0-dev"
+var Version = "0.2.0-dev"
 
 // Settings are persisted user preferences.
 type Settings struct {
@@ -46,6 +48,8 @@ type Settings struct {
 	Notifications    bool     `json:"notifications"`
 	StartWithWindows bool     `json:"startWithWindows"`
 	StopOnExit       bool     `json:"stopServicesOnExit"`
+	// TrustedKeys are receipt-signing key fingerprints (16 hex chars) the user trusts.
+	TrustedKeys []string `json:"trustedKeys"`
 }
 
 // DefaultSettings returns documented defaults.
@@ -75,6 +79,11 @@ func (s Settings) validate() error {
 			return c
 		}
 	}
+	for _, k := range s.TrustedKeys {
+		if len(k) != 16 || strings.Trim(k, "0123456789abcdef") != "" {
+			return fmt.Errorf("trusted key %q must be a 16-character lowercase hex fingerprint", k)
+		}
+	}
 	for _, p := range s.ExtraRedaction {
 		if len(p) > 200 {
 			return errors.New("redaction pattern too long")
@@ -94,13 +103,15 @@ type Event struct {
 
 // Engine owns every subsystem.
 type Engine struct {
-	Home string
-	DB   *database.DB
-	Hub  *logs.Hub
-	Sup  *supervisor.Manager
-	Proc *process.Explorer
-	Res  *resources.Sampler
-	WS   *workspaces.Manager
+	Home  string
+	DB    *database.DB
+	Hub   *logs.Hub
+	Sup   *supervisor.Manager
+	Proc  *process.Explorer
+	Res   *resources.Sampler
+	WS    *workspaces.Manager
+	Store *store.Store
+	Exec  *execution.Manager
 
 	Recovered string // non-empty when the database had to be recreated
 
@@ -151,6 +162,14 @@ func New(opts Options) (*Engine, error) {
 	e.Proc = process.NewExplorer(e.Sup.ManagedPIDs)
 	e.Res = resources.NewSampler(900, time.Duration(e.set.SampleSec)*time.Second)
 	e.WS = workspaces.NewManager(db, e.Sup)
+	e.Store = store.New(db.DB)
+	e.Exec = execution.NewManager(e.Store, execution.NewRecorder(e.Store, e.redactor(e.set), e.Publish), e.Sup, e.Hub, home, Version)
+	e.Sup.OnEvent(e.Exec.HandleSupervisorEvent)
+	if ids, err := e.Exec.Recover(); err == nil {
+		for _, id := range ids {
+			e.activity("execution-interrupted", id, "RUNTIDE stopped while this execution was running", "warn")
+		}
+	}
 	e.Res.Start(ctx)
 	e.logDone = e.Hub.StartPersistence(ctx, db.DB)
 	e.Sup.OnEvent(e.onSupervisorEvent)
@@ -205,6 +224,7 @@ func (e *Engine) SetSettings(s Settings) error {
 	e.set = s
 	e.mu.Unlock()
 	e.Hub.SetRedactor(e.redactor(s))
+	e.Exec.Rec.Red = e.redactor(s)
 	e.Res.SetInterval(time.Duration(s.SampleSec) * time.Second)
 	return nil
 }

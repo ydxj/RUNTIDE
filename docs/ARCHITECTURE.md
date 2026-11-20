@@ -74,7 +74,7 @@ RUNTIDE keeps these strictly separate (they have different risks and different c
 ## Why a background engine for the CLI
 
 A service must outlive the CLI command that started it, so long-lived state lives in an engine process: the
-desktop app, or `runtide daemon run` (started automatically on first use of `start`, `workspace up`, `logs`).
+desktop app, or `runtide daemon run` (started automatically on first use of `start`, `stack up`, `logs`).
 Read-only commands (`processes`, `ports`, `tools`, `doctor`, `env`) run against a private in-process engine when
 nothing is running, and against the live engine when one is. The engine publishes `api.json` (address, token, pid)
 in the user's private data folder; a stale file is detected by checking the pid.
@@ -91,3 +91,25 @@ migrations inside transactions; a newer-than-supported schema refuses to open. S
 `hooks/` (polling that pauses while hidden, event subscription), `services/` (single `call()` transport, formatting),
 `stores/` (zustand UI store), `types/` (mirror of engine JSON). Tests replace the transport with a fake engine; the
 production build has no mock data anywhere.
+
+## 0.2: execution platform
+
+```
+  desktop (Tasks pages)   CLI (run/receipt/workspace)   runtide-mcp (stdio MCP)
+            └───────────────┬──────────────────────────────┘
+                   Engine.Dispatch  (internal/app/exec_dispatch.go)
+                            │
+        internal/execution (Manager: lifecycle, recorder, recovery, workspaces)
+          ├─ capsule      (managed / worktree / docker / wsl wrappers, clean environment)
+          ├─ verification (pipelines, DAG, statuses)
+          ├─ files        (baseline + changes, secret exclusion)
+          ├─ store        (SQLite access for executions, events, output, receipts)
+          └─ receipts     (build, verify, sign, compare, report, replay)
+
+  runtide-server  →  internal/server (HTTP API, auth, roles, audit)   — stores receipts, never executes
+```
+
+* `internal/domain` holds the state machine (`CanTransitionExecution`/`CanTransitionWorkspace`), isolation levels and event types.
+* Migrations are additive (v2); a pre-migration backup is written first ([DATABASE.md](DATABASE.md)).
+* The recorder is the single writer of evidence; receipts are built only from stored evidence.
+* The desktop app batches `log` and `exec.output` events (150 ms) before sending them to the UI.

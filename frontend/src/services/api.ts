@@ -95,4 +95,7 @@ export function wireRuntimeEvents(): void {
   window.runtime.EventsOn('log-batch', (batch) => {
     if (Array.isArray(batch)) batch.forEach((e) => emitEngineEvent('log', e))
   })
+  window.runtime.EventsOn('exec-output-batch', (batch) => {
+    if (Array.isArray(batch)) batch.forEach((e) => emitEngineEvent('exec.output', e))
+  })
 }

@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notifications: true,
   startWithWindows: false,
   stopServicesOnExit: true,
+  trustedKeys: null,
 }
 
 export function proc(over: Partial<Process> & { pid: number; name: string }): Process {

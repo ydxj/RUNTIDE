@@ -1,5 +1,5 @@
 import { test } from '@playwright/test'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { launch, type App } from './harness'
@@ -67,9 +67,10 @@ test.afterAll(async () => {
 })
 
 test('capture documentation screenshots', async () => {
+  test.setTimeout(300_000)
   const { page } = app
   const proj = demoProject()
-  const imp = app.cli('workspace', 'import', proj.file, '--yes')
+  const imp = app.cli('stack', 'import', proj.file, '--yes')
   if (imp.status !== 0) throw new Error(imp.stderr)
   const legacy = join(proj.dir, "..", "legacy-admin")
   mkdirSync(legacy, { recursive: true })
@@ -83,11 +84,52 @@ services:
     working_directory: admin
     healthcheck: { type: http, url: "http://127.0.0.1:43111/", interval_sec: 5 }
 `)
-  const imp2 = app.cli("workspace", "import", join(legacy, "runtide.yaml"), "--yes")
+  const imp2 = app.cli("stack", "import", join(legacy, "runtide.yaml"), "--yes")
   if (imp2.status !== 0) throw new Error(imp2.stderr)
-  const up = app.cli('workspace', 'up', 'fullstack-demo', '--yes')
+  const up = app.cli('stack', 'up', 'fullstack-demo', '--yes')
   if (up.status !== 0) throw new Error(up.stderr)
   await page.waitForTimeout(7000) // let health checks settle and logs accumulate
+
+  // Real executions: one that passes verification and one that fails it.
+  const execDir = join(process.env.SCREENSHOT_DEMO_DIR ?? tmpdir(), 'exec-demo')
+  rmSync(execDir, { recursive: true, force: true }) // regenerated each run
+  mkdirSync(join(execDir, 'src'), { recursive: true })
+  writeFileSync(join(execDir, 'src', 'app.txt'), 'v1\n')
+  const mkCfg = (name: string, task: string, ok: boolean) => {
+    const p = join(execDir, `${name}.yaml`)
+    writeFileSync(
+      p,
+      `version: 1
+task: ${task}
+isolation: managed
+start:
+  - {name: build, command: node, args: ['-e', "console.log('compiling 12 modules'); console.log('build finished'); require('fs').writeFileSync('result.txt','ok')"]}
+verify:
+  name: acceptance
+  checks:
+    - {name: build-output, type: file, path: result.txt}
+    - {name: unit-tests, command: node, args: ['-e', "console.log('${ok ? '18 passed' : '16 passed, 2 failed'}'); process.exit(${ok ? 0 : 1})"]}
+`,
+    )
+    return p
+  }
+  const must = (r: { status: number | null; stdout: string; stderr: string }) => {
+    if (r.status !== 0) throw new Error(r.stdout + r.stderr)
+    return r.stdout
+  }
+  must(app.cli('project', 'create', 'webshop', '--root', execDir))
+  for (const [name, task, ok] of [
+    ['good', 'Add login rate limiting', true],
+    ['bad', 'Refactor checkout totals', false],
+  ] as const) {
+    must(app.cli('workspace', 'create', name, '--project', 'webshop', '--config', mkCfg(name, task, ok), '--yes'))
+    must(app.cli('run', 'create', '--workspace', `webshop/${name}`))
+    const list = JSON.parse(must(app.cli('run', 'list', '--json'))) as { id: string; task: string }[]
+    const id = list.find((x) => x.task === task)!.id
+    must(app.cli('run', 'start', id, '--yes'))
+    app.cli('run', 'verify', id) // the failing pipeline exits non-zero: that is the point
+    must(app.cli('run', 'export', id, '-o', join(execDir, `${name}.runtide.zip`)))
+  }
 
   const shot = async (name: string, nav: string | RegExp, prep?: () => Promise<void>) => {
     await page.getByRole('button', { name: nav }).first().click()
@@ -96,7 +138,9 @@ services:
     await page.screenshot({ path: join(out, `${name}.png`) })
   }
 
-  await shot('overview', /^Overview/)
+  await shot('overview', /^Overview/, async () => {
+    await page.waitForTimeout(6000) // overview polls executions every 5s
+  })
   await shot('processes', /^Processes/, async () => {
     await page.getByLabel("Filter processes").fill("server.js")
     await page.waitForTimeout(1500)
@@ -108,8 +152,30 @@ services:
     await page.getByRole('row', { name: /43111/ }).first().click()
   })
   await shot('services', /^Services/)
-  await shot('workspaces', /^Workspaces/)
-  await shot('logs', /^Logs/)
+  await shot('stacks', /^Stacks/)
+  await shot('projects', /^Projects/)
+  await shot('task-workspaces', /^Workspaces/)
+  await shot('executions', /^Executions/)
+  await shot('execution-timeline', /^Executions/, async () => {
+    await page.getByRole('row', { name: /Refactor checkout totals/ }).click()
+    await page.getByRole('tab', { name: 'Timeline' }).click()
+    await page.waitForTimeout(800)
+  })
+  await page.getByRole('tab', { name: 'Verification' }).click()
+  await page.waitForTimeout(500)
+  await page.screenshot({ path: join(out, 'execution-verification.png') })
+  await shot('verification', /^Verification/)
+  await shot('receipts', /^Receipts/)
+  await shot('compare', /^Compare/, async () => {
+    const opts = await page.getByLabel('Baseline (A)').locator('option').allTextContents()
+    const pick = (s: string) => opts.find((o) => o.includes(s))!
+    await page.getByLabel('Baseline (A)').selectOption({ label: pick('Add login rate limiting') })
+    await page.getByLabel('Candidate (B)').selectOption({ label: pick('Refactor checkout totals') })
+    await page.getByRole('main').getByRole('button', { name: 'Compare', exact: true }).click()
+    await page.waitForTimeout(1500)
+  })
+  await shot('integrations', /^Integrations/)
+  await shot('logs', /^Service logs/)
   await shot('resources', /^Resources/)
   await shot('environment', /^Environment/, async () => {
     await page.getByRole('row', { name: /^Git/ }).waitFor({ timeout: 60_000 })
@@ -122,8 +188,10 @@ services:
   await page.getByLabel('Search commands').fill('dark')
   await page.keyboard.press('Enter')
   await page.waitForTimeout(500)
-  await shot('overview-dark', /^Overview/)
-  await shot('workspaces-dark', /^Workspaces/)
+  await shot('overview-dark', /^Overview/, async () => {
+    await page.waitForTimeout(1000)
+  })
+  await shot('stacks-dark', /^Stacks/)
 
-  app.cli('workspace', 'down', 'fullstack-demo')
+  app.cli('stack', 'down', 'fullstack-demo')
 })

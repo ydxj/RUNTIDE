@@ -91,14 +91,14 @@ func TestUsageErrorsHaveExitCode2(t *testing.T) {
 	assert.Equal(t, exitUsage, ee.code)
 }
 
-func TestWorkspaceImportRequiresConfirmationWhenNotInteractive(t *testing.T) {
+func TestStackImportRequiresConfirmationWhenNotInteractive(t *testing.T) {
 	dir := t.TempDir()
 	f := dir + `\w.yaml`
 	require.NoError(t, os.WriteFile(f, []byte("name: t\nservices:\n  - {name: a, command: cmd.exe}\n"), 0o600))
-	_, err := run(t, "workspace", "import", f)
+	_, err := run(t, "stack", "import", f)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "--yes")
-	out, err := run(t, "workspaces", "--json")
+	out, err := run(t, "stacks", "--json")
 	require.NoError(t, err)
 	assert.JSONEq(t, "[]", out, "nothing may be registered without confirmation")
 }

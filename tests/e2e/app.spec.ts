@@ -43,29 +43,29 @@ test('port manager lists a listener started by the test, with its owner', async 
   }
 })
 
-test('workspace lifecycle through the UI: create, authorise, start in order, logs, stop', async () => {
+test('stack lifecycle through the UI: create, authorise, start in order, logs, stop', async () => {
   const { page } = app
-  await page.getByRole('button', { name: /^Workspaces/ }).click()
-  await page.getByRole('button', { name: 'New workspace' }).first().click()
+  await page.getByRole('button', { name: /^Stacks/ }).click()
+  await page.getByRole('button', { name: 'New stack' }).first().click()
   await page.getByPlaceholder(/projects/).fill(project.dir)
-  await page.getByLabel('Workspace YAML').fill(project.yaml)
+  await page.getByLabel('Stack YAML').fill(project.yaml)
   await page.getByRole('button', { name: 'Validate' }).click()
   await expect(page.getByText('Valid. Start order:')).toBeVisible()
-  await page.getByRole('button', { name: 'Save workspace' }).click()
+  await page.getByRole('button', { name: 'Save stack' }).click()
   await expect(page.getByText('not authorised')).toBeVisible()
 
   // Nothing is running yet: the port must be free.
   expect(await portOpen(DB)).toBe(false)
 
   await page.getByRole('button', { name: /Start/ }).first().click()
-  const dialog = page.getByRole('dialog', { name: /Authorise e2e-shop/ })
+  const dialog = page.getByRole('dialog', { name: /Authorise stack e2e-shop/ })
   await expect(dialog).toContainText('node server.js')
   await expect(dialog).toContainText('Authorisation applies to this exact definition')
   expect(await portOpen(DB)).toBe(false) // still nothing started before consent
   await dialog.getByRole('button', { name: /Authorise and start/ }).click()
 
   await expect(page.getByText('e2e-shop: is up')).toBeVisible({ timeout: 60_000 })
-  const services = page.getByRole('table', { name: 'Workspace services' })
+  const services = page.getByRole('table', { name: 'Stack services' })
   await expect(services.getByRole('row', { name: /db.*running.*healthy/ })).toBeVisible()
   await expect(services.getByRole('row', { name: /api.*running.*healthy/ })).toBeVisible()
   expect(await portOpen(DB)).toBe(true)
@@ -77,14 +77,14 @@ test('workspace lifecycle through the UI: create, authorise, start in order, log
   expect(JSON.parse(ls.stdout).map((s: { key: string }) => s.key)).toContain('e2e-shop/api')
 
   // Logs: real stdout, secret redacted.
-  await page.getByRole('button', { name: /^Logs/ }).click()
+  await page.getByRole('button', { name: /^Service logs/ }).click()
   const log = page.getByRole('log', { name: 'Log output' })
   await expect(log).toContainText('api ready', { timeout: 15_000 })
   await expect(log).not.toContainText('hunter2hunter2')
   await expect(log).toContainText('redacted')
 
   // Stop from the UI and verify the OS agrees.
-  await page.getByRole('button', { name: /^Workspaces/ }).click()
+  await page.getByRole('button', { name: /^Stacks/ }).click()
   await page.getByRole('button', { name: /^Stop/ }).click()
   await expect(page.getByText('e2e-shop: stopped')).toBeVisible({ timeout: 30_000 })
   await expect.poll(() => portOpen(DB), { timeout: 10_000 }).toBe(false)
