@@ -39,13 +39,27 @@ Validation refuses: invalid image references, `network` values other than empty 
 expose sensitive host locations (user profile secrets, system directories), and malformed ports. The workspace directory is the
 only automatic mount.
 
-**Verification status:** the generated `docker run` command lines and the validation are unit-tested. A real container execution
-was **not** run end to end on the development machine (Docker Desktop's engine was not running).
+**Verification status:** the generated `docker run` command lines and the validation are unit-tested, and a test proves that an
+unavailable engine or image makes the execution **fail** instead of running the command natively. A real container execution is
+covered by `TestDockerIsolationRunsCommandsInsideAContainer`, which runs only when the Docker engine answers and a small local
+image exists; it was **skipped on the build machine because Docker Desktop was not running**, so a real container run has not
+been observed.
 
 ## WSL2 (level 4)
 
 Configured in the `wsl:` section (distribution name, optional user). Commands are wrapped with `wsl.exe -d <distro> --cd …`.
-Wrapping and validation are unit-tested; an end-to-end run inside WSL was **not** performed.
+Wrapping and validation are unit-tested, and `TestWSLIsolationRunsCommandsInsideTheDistribution` runs a real execution against a
+real distribution (Ubuntu on WSL2 on the build machine): the commands run as a Linux process (`uname -s` reports `Linux`), write
+into the Windows workspace directory, and their output is recorded and verified. A missing distribution makes the execution fail;
+it never runs natively (`TestWSLIsolationNeverFallsBackToNativeExecution`).
+
+## What is enforced regardless of level
+
+* Commands are started from an argument vector; no shell command line is ever built (tested with hostile arguments, including a
+  `.cmd` batch target).
+* Working directories and paths from configuration must stay inside the workspace, **including through symbolic links and
+  junctions** (tested with a real junction).
+* A level whose runtime is missing fails with that reason. There is no automatic downgrade.
 
 ## Choosing a level
 

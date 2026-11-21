@@ -21,7 +21,10 @@ The UI and receipts show the source on every event; evidence is never upgraded.
 * Processes: `process.started` (pid, creation time), `process.terminated`, managed-process table used for orphan detection.
 * Services: start, health transitions (`service.healthy`/`service.unhealthy`), stop.
 * Verification: `test.started`, `verification.passed|failed|skipped|timed_out`, `test.completed`.
+* Output: `output.captured` after each command (bytes of stdout/stderr, whether output was truncated).
 * Files: `files.changed` summary (see below).
+* Receipts: `receipt.generated` when a receipt is exported. It is recorded *after* the archive exists, so it appears in the
+  timeline but is not inside the receipt it announces.
 
 ## Bounds
 
@@ -33,6 +36,20 @@ The UI and receipts show the source on every event; evidence is never upgraded.
 
 Past a limit RUNTIDE keeps counting but stops storing, marks the command `truncated`, and writes a single event saying the limit
 was reached. Failures to persist an event are returned to the caller: evidence is never dropped silently.
+
+Limits are settings (**Settings → Execution evidence**, or `runtide config set execMaxOutputMB 16`,
+`execMaxEvents 200000`); the defaults above apply until changed.
+
+## Retention
+
+By default RUNTIDE **keeps every execution forever**. To bound disk use:
+
+* `execRetentionDays` (Settings or `runtide config set execRetentionDays 90`): ended executions older than this are deleted hourly.
+* `runtide run prune --older-than 90 [--dry-run]` or **Settings → Review and delete…**: counts first, asks, then deletes.
+
+Only ended executions are pruned (never running ones, and never one that still has a live recorded process, which orphan handling
+needs). Deleting removes events, output, commands, file changes and verification results; exported receipt files and the receipt
+index are not touched.
 
 ## Redaction
 

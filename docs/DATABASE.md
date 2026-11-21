@@ -12,6 +12,9 @@ Version 1 (RUNTIDE 0.1, unchanged): `settings`, `workspaces` (now shown as **Sta
 Version 2 (0.2, additive): `projects`, `task_workspaces`, `executions`, `exec_events`, `exec_commands`, `exec_output`,
 `managed_processes`, `exec_services`, `file_changes`, `file_baselines`, `verification_results`, `receipts`, `audit_events`.
 
+Version 3 (0.9, additive): `projects.archived_at`, `projects.settings_json` (per-project defaults) and the table
+`verification_profiles`.
+
 Task workspaces and executions never reuse the 0.1 `workspaces` table: that table keeps meaning "stack". Executions reference
 their workspace and project; events, commands, output, processes, services, file changes and verification results reference
 their execution and are deleted with it. A workspace with recorded executions cannot be deleted.
@@ -23,6 +26,8 @@ their execution and are deleted with it. A workspace with recorded executions ca
   `backups\pre-migration-v<N>-<timestamp>.db` (`VACUUM INTO`). If the backup fails, the migration does not run.
 * A database written by a **newer** RUNTIDE is refused rather than downgraded.
 * A corrupt database is moved aside and a fresh one is created; the original is kept.
+* The installer upgrade test installs the 0.2.0 release, records an execution with it, upgrades to the current version and checks
+  that the project, the execution, its output and a `pre-migration-v2-…` backup all exist afterwards (`build/tools/test-installer.ps1`).
 * Tests build a real version-1 database with data, migrate it and assert that every row survived (`internal/database`).
 
 ## Retention and bounds

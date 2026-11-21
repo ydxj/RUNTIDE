@@ -34,6 +34,15 @@ runtide receipt push result.runtide.zip --server https://… --project <id>   # 
 
 ## Verification
 
+The result has two **separate** parts, shown everywhere (CLI, API, desktop, HTML report):
+
+| Field | Values | Meaning |
+| --- | --- | --- |
+| `integrity` | `verified`, `failed` | every file matches the manifest and nothing unlisted is present |
+| `signatureState` | `verified`, `unavailable`, `invalid` | a matching Ed25519 signature; *unavailable* = unsigned (not an error); *invalid* = present but wrong (**the receipt fails**) |
+
+The normative algorithm is in [RUN_RECEIPT_SPEC.md](RUN_RECEIPT_SPEC.md).
+
 `receipt verify` streams the archive, checks that the manifest lists exactly the files present, that every size and SHA-256
 match, that the format version is supported, and (if signed) that the signature is valid. Verification is content-addressed and
 in memory: nothing is extracted to disk. Entries with unsafe names (`..`, absolute paths, odd segments) are reported as problems,

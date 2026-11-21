@@ -22,3 +22,7 @@ workspaces, logs and diagnostics." Topics: `windows`, `developer-tools`, `proces
 - [ ] Docker and WSL isolation exercised for real (not only unit tests) before claiming them as tested
 - [ ] Claude Code / Codex MCP registration tried with the real clients before keeping the integration docs' wording
 - [ ] Upgrade from a 0.1 data folder verified: pre-migration backup exists and stacks/history are intact
+- [ ] `build/tools/test-installer.ps1 -New dist\RUNTIDE-<ver>-setup.exe -Old <previous installer>` passes (fresh install, startup, upgrade with data kept, uninstall)
+- [ ] The race detector is clean: `CGO_ENABLED=1 go test -race ./internal/server ./internal/store ./internal/execution ./internal/receipts ./internal/capsule`
+- [ ] `GOOS=linux CGO_ENABLED=0 go build ./cmd/runtide-server` succeeds and `tests/scenario` Linux-in-WSL test passes
+- [ ] **For 1.0.0 only:** a real Docker container run (`TestDockerIsolationRunsCommandsInsideAContainer` not skipped), the server image built and probed, and the MCP server used from a real client

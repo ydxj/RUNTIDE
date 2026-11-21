@@ -16,6 +16,12 @@ before doing anything consequential.
 | Files | `.env.example` generation previews first, backs up any existing file (`*.runtide-backup-<time>`) and writes atomically. Doctor fixes can only touch paths inside registered workspace roots and never overwrite. |
 | Database | Parameterised queries only; `LIKE` wildcards escaped; foreign keys on; integrity check on open; corruption is quarantined (`.corrupt-<time>`) not deleted; backups via `VACUUM INTO`. |
 
+## Review and threat model
+
+The threat model, the findings of the 0.9 review (including a high-severity junction/symlink escape that was found and fixed),
+the evidence for each claim and the remaining limitations are in [SECURITY_REVIEW.md](SECURITY_REVIEW.md). It is a self-review,
+not an audit or certification.
+
 ## Execution platform (0.2)
 
 | Boundary | Protection |
@@ -25,6 +31,7 @@ before doing anything consequential.
 | Replay | Needs explicit approval of the displayed steps; runs in a new worktree at the recorded commit, never in your working tree; refuses when secrets were withheld, the commit is absent, or the receipt was recorded elsewhere than Windows. |
 | Ad-hoc commands | Disabled unless the workspace policy sets `allow_adhoc`; `policy.allow`/`deny` globs apply. |
 | Orphan cleanup | Terminates only processes whose pid **and** creation time match a recorded RUNTIDE launch, after confirmation. |
+| Paths | Configuration paths resolve **inside** the workspace including through symbolic links and junctions (`config.ResolveInside`); a link leading outside is refused for verification checks, command directories, receipt artifacts and diffs. |
 | Git | Worktrees on their own branch; the checked-out branch and uncommitted changes are never modified. |
 | MCP | Permission level fixed by the human at registration; tools above it are not registered; every action is recorded. |
 | Server | Loopback by default; remote needs TLS or an explicit proxy acknowledgement; argon2id passwords; hashed tokens with expiry; per-IP/user login limits and an API limit; role checks per project; audit log; no endpoint executes commands. |

@@ -4,6 +4,16 @@
 > client. A live session with Claude Code was **not** run during development; treat the steps as documentation to verify on your
 > machine.
 
+## 0. Get the exact command
+
+```powershell
+runtide mcp config --level controlled
+runtide mcp check --level read
+```
+
+`mcp config` prints the registration line for your install path and the generic JSON; it does not modify your Claude
+configuration. `mcp check` proves RUNTIDE's side works (handshake, tool list, read-only calls) with the Go SDK client.
+
 ## 1. Register the MCP server
 
 ```bash

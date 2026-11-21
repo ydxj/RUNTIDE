@@ -29,3 +29,9 @@ is on the Logs page.
 | `receipt replay` is blocked | Read the "blocked:" lines: missing commit in `--project-dir`, withheld secrets (`--env`), or no replayable steps. |
 | Worktree creation fails | The project must be a git repository with at least one commit; uncommitted changes need `--allow-dirty` (the worktree starts from the last commit). |
 | `runtide-server` refuses to start | Non-loopback addresses need `--allow-remote` and TLS (or `--behind-tls-proxy`). |
+| `runtide diagnostics isolation` says Docker is unavailable | The engine is not running or not reachable (Docker Desktop stopped). Docker-isolated executions fail with that reason instead of running natively; start Docker Desktop. |
+| An execution refuses a path "outside the workspace through a symbolic link or junction" | A link inside the workspace points elsewhere. RUNTIDE will not read or embed files outside the workspace through links; use a path inside it. |
+| A project does not appear in the list | It is archived: `runtide project list --all`, then `project unarchive`. |
+| Disk use keeps growing | Execution evidence is kept forever by default. Set `execRetentionDays`, or `runtide run prune --older-than 90`. |
+| `run verify` says "no verification defined" | The workspace has no `verify` section and its project has no default profile: use `--profile`, add a `verify` section, or set `project update --default-profile`. |
+| `runtide mcp check` fails | `runtide-mcp.exe` must be next to `runtide.exe`; the message says what failed (start, handshake, tool list or call). |

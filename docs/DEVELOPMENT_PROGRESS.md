@@ -1,5 +1,33 @@
 # Development progress
 
+## 0.9.0: release candidate (1.0.0 productization)
+
+Plan and outcome: [V1_IMPLEMENTATION_PLAN.md](V1_IMPLEMENTATION_PLAN.md). Evidence: [TESTING.md](TESTING.md). Everything below was
+exercised on the build machine; nothing has been published or committed by the assistant that did this work.
+
+| Phase | Status | Remaining |
+| --- | --- | --- |
+| A Audit and plan | Done | none |
+| B Engine reliability | Done, except Docker run | A real container run needs Docker Desktop running (the test exists and skips honestly) |
+| C Recorder and receipts | Done | none known |
+| D Verification and comparison | Done | none known |
+| E Desktop application | Done | none known; the sidebar scrolls below about 900 px height |
+| F CLI and MCP | Done, except a real MCP client | Try Claude Code and Codex with `runtide mcp config` |
+| G Server and deployment | Done, except the container image | Build and run `deployments/Dockerfile` where Docker works (CI does) |
+| H Isolation validation | Done | Docker run (see B) |
+| I Security and QA | Done as a self-review | No external audit |
+| J Installation and packaging | Done | Clean-VM and Windows 10 install not tested |
+
+Defects found and fixed during this phase (details in [SECURITY_REVIEW.md](SECURITY_REVIEW.md) and [RELEASE_NOTES.md](RELEASE_NOTES.md)):
+symlink/junction escape from workspaces (high), concurrent-upload HTTP 500, Docker reported running when stopped, server image could
+not build, phantom receipt entries after comparing executions (plus a startup cleanup for databases that already have them),
+replay pre-flight crashed the UI on `null` lists, a flaky capsule test.
+
+**Version decision:** 0.9.0, not 1.0.0. Docker execution, a real MCP client and the container image have not been exercised
+([KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)).
+
+---
+
 ## 0.2: execution and verification platform
 
 | Area | Status | Evidence |

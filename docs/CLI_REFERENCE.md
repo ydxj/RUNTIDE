@@ -71,7 +71,11 @@ they refuse.
 
 | Command | Description |
 | --- | --- |
-| `project create <name> [--root dir]` / `project list` | Register or list project directories. |
+| `project create <name> [--root dir] [--description d]` | Register a project directory. |
+| `project list [--all]` | List projects (`--all` includes archived ones). |
+| `project show <project>` | Show a project with its settings. |
+| `project update <project> [--description d] [--default-isolation level] [--default-profile name]` | Change description or defaults; flags not given are kept, `""` clears. |
+| `project archive <project>` / `project unarchive <project>` | Hide / restore a project. Nothing is deleted; a project with a running execution cannot be archived. |
 | `workspace create <name> --project p [--config file.yaml] [--isolation managed\|worktree\|docker\|wsl] [--dir d] [--allow-dirty]` | Show the plan, then create a task workspace. |
 | `workspace list` / `inspect <ref>` | List, or show a workspace and the commands it would run. `ref` is an id or `project/name`. |
 | `workspace approve <ref>` | Approve the *current* commands (any `configure` revokes it). |
@@ -87,14 +91,31 @@ they refuse.
 | `run logs <id> [--command name] [-f]` | Recorded (redacted) output. |
 | `run events <id> [--type t] [--search s] [--severity s]` | The timeline. |
 | `run exec <id> [--name n] -- cmd args…` | Ad-hoc recorded command (needs approval and `policy.allow_adhoc`). |
-| `run verify <id>` | Run the verification pipeline. |
+| `run verify <id> [--profile name]` | Run verification: the workspace's `verify` section, else the project's default profile, or the named profile. Exit code 3 unless the verdict is `passed`. |
 | `run finish <id>` / `run cancel <id> [--reason r]` | Complete without verification / cancel and stop everything. |
 | `run files <id>` / `run diff <id> <path>` | File changes / text diff of a modified file. |
 | `run export <id> [-o file] [--include-diffs] [--artifact path] [--sign]` | Create a Run Receipt. |
 | `run compare <a> <b>` | Compare two executions or receipts. |
 | `run orphans` / `run cleanup [id]` | List / terminate verified orphaned processes. |
+| `run prune --older-than <days> [--dry-run] [-y]` | Delete ended executions older than N days (counted and confirmed first; receipt files are kept). |
 | `receipt list|inspect|verify|import|report|compare|keygen|push|replay` | See [RUN_RECEIPTS.md](RUN_RECEIPTS.md) and [REPRODUCTION.md](REPRODUCTION.md). |
 | `server start [--addr a]` / `server status [--url u]` | Launch or probe the self-hosted server. |
+| `verification list` / `show <name>` / `save <name> <file.yaml> [--description d]` / `delete <name>` | Reusable verification profiles (alias `profile`). Saving validates the pipeline. |
+| `mcp config [--level l]` | Print the Claude Code registration command and generic MCP JSON. Changes nothing. |
+| `mcp serve [--level l]` | Run the MCP server on stdio (what an MCP client launches). |
+| `mcp check [--level l]` | Start the MCP server, connect as a client, list tools and make read-only calls. Reports what it tested. |
+| `diagnostics isolation` | Which isolation levels can run here (Git, Docker engine, WSL2), from real probes. |
+| `diagnostics run` | Same as `doctor`. |
 
 `runtide-mcp.exe` and `runtide-server.exe` are separate binaries: [MCP_INTEGRATION.md](MCP_INTEGRATION.md),
 [SELF_HOSTING.md](SELF_HOSTING.md).
+
+## Scripting
+
+* `--json` prints machine-readable output on every command; errors still go to stderr with a non-zero exit code.
+* Commands never prompt when `--yes` is given. Without it, a non-interactive shell refuses actions that need confirmation
+  instead of guessing.
+* Exit codes: `0` success, `1` failure or declined confirmation, `2` usage error, `3` findings (verification not passed, receipt
+  invalid, Doctor error), `4` the background engine could not be reached or started.
+* `runtide receipt verify`, `run verify` and `diagnostics` are safe to use in CI: they change nothing except `run verify`, which
+  records its results on the execution.

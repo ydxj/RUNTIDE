@@ -16,9 +16,12 @@ settings, install services or enable start-with-Windows.
   entry and the optional start-with-Windows entry. User data is kept; delete `%LOCALAPPDATA%\Runtide` for a full wipe.
 * **Silent**: `RUNTIDE-<version>-setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="C:\Tools\RUNTIDE"`.
 
-Verified on this project's build machine: silent install, running `runtide.exe` from the install folder, in-place
-upgrade, and uninstall (all files and the uninstall registration removed, data folder kept). The installer has **not**
-been tested on a separate clean Windows installation or a VM, and binaries are unsigned (SmartScreen may warn).
+**Tested** (`build/tools/test-installer.ps1`, run against the 0.9.0 and 0.2.0 installers on the build machine, into a temporary
+directory with an isolated data folder, 28 checks): fresh silent install, installed files, uninstall registration, the installed
+CLI and MCP server running (`mcp check`), the desktop app opening a window and staying up, uninstall (files and registration
+removed, data kept), and an **upgrade from the real 0.2.0 installer** with the recorded project, execution, output and a
+`pre-migration-v2-…` backup all present afterwards. **Not tested**: a clean virtual machine, Windows 10, and the upgrade of a
+real user profile. Binaries are unsigned (SmartScreen may warn).
 
 ## Portable
 
@@ -36,7 +39,18 @@ the executables on a USB stick).
 [SELF_HOSTING.md](SELF_HOSTING.md). The server is optional and loopback-only until you configure it. Other prerequisites per
 feature (Git, Docker, WSL): [WINDOWS_SETUP.md](WINDOWS_SETUP.md).
 
-## Upgrading from 0.1
+## Uninstalling
+
+Settings → Apps → RUNTIDE, or `unins000.exe` in the install folder (`/VERYSILENT` for silent). It stops the background engine and
+removes the program files and the optional PATH/autostart entries. **Your data is kept** (`%LOCALAPPDATA%\Runtide`: database,
+receipts, backups). Delete that folder yourself for a full wipe; export any receipts you want to keep first.
+
+## Verifying downloads
+
+`SHA256SUMS.txt` lists the SHA-256 of every artifact: `Get-FileHash .\RUNTIDE-0.9.0-setup.exe -Algorithm SHA256`. Binaries are
+not code-signed, so compare the hash with one you obtained from a source you trust.
+
+## Upgrading from 0.1 or 0.2
 
 Install over the old version. On first start RUNTIDE writes `backups\pre-migration-v1-<time>.db` before migrating; your stacks,
 services and history are kept. The 0.1 CLI group `workspace` is now `stack` (`runtide stack up …`); `workspace` manages task
