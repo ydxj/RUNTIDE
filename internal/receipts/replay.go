@@ -36,15 +36,37 @@ type ReplayPlan struct {
 	Missing    []string `json:"missing"`
 	Blockers   []string `json:"blockers"`
 	Commit     string   `json:"commit,omitempty"`
+	// Pre-flight, shown before anything runs.
+	Dependencies []Dependency `json:"dependencies"`
+	Destructive  []string     `json:"destructive"` // heuristic: potentially destructive operations
+	Permissions  []string     `json:"permissions"`
+	// Outcome is set for plans that can never run: metadata_only.
+	Outcome string `json:"outcome,omitempty"`
 
 	cfg *execution.Config
 }
 
 // PlanReplay inspects the receipt against this machine. It changes nothing.
+// Every list in the result is non-nil so it serialises as [] and never as null.
 func PlanReplay(r *Receipt, o ReplayOptions) *ReplayPlan {
-	p := &ReplayPlan{Class: r.Reproduction.Class, Reasons: append([]string{}, r.Reproduction.Reasons...), Missing: append([]string{}, r.Reproduction.Missing...)}
+	p := planReplay(r, o)
+	for _, l := range []*[]string{&p.Reasons, &p.Steps, &p.NeedsEnv, &p.ToolIssues, &p.Missing, &p.Blockers, &p.Destructive, &p.Permissions} {
+		if *l == nil {
+			*l = []string{}
+		}
+	}
+	if p.Dependencies == nil {
+		p.Dependencies = []Dependency{}
+	}
+	return p
+}
+
+func planReplay(r *Receipt, o ReplayOptions) *ReplayPlan {
+	p := &ReplayPlan{Class: r.Reproduction.Class, Reasons: append([]string{}, r.Reproduction.Reasons...), Missing: append([]string{}, r.Reproduction.Missing...),
+		Dependencies: []Dependency{}, Destructive: []string{}, Permissions: []string{}}
 	if r.Reproduction.Class == ReproNone || r.Reproduction.Class == ReproMetadataOnly {
 		p.Blockers = append(p.Blockers, fmt.Sprintf("this receipt is classified %q: it has no replayable steps", r.Reproduction.Class))
+		p.Outcome = OutcomeMetadata
 		return p
 	}
 	if r.Execution.ConfigYAML == "" {
@@ -127,6 +149,7 @@ func PlanReplay(r *Receipt, o ReplayOptions) *ReplayPlan {
 	if r.Environment.OS != "" && r.Environment.OS != "windows" {
 		p.Blockers = append(p.Blockers, "the receipt was recorded on "+r.Environment.OS+"; this RUNTIDE replays Windows executions only")
 	}
+	p.preflight(cfg, r, have)
 	return p
 }
 
@@ -161,6 +184,9 @@ type ReplayResult struct {
 	State       string      `json:"state"`
 	ReceiptPath string      `json:"receiptPath"`
 	Comparison  *Comparison `json:"comparison"`
+	// Outcome is one of reproduced, partially_reproduced, could_not_reproduce, metadata_only.
+	Outcome        string   `json:"outcome"`
+	OutcomeReasons []string `json:"outcomeReasons"`
 }
 
 // Replay re-runs the recorded steps in an isolated worktree, records the new
@@ -170,6 +196,10 @@ func Replay(ctx context.Context, m *execution.Manager, r *Receipt, receiptPath s
 	plan := PlanReplay(r, o)
 	res := &ReplayResult{Plan: plan}
 	if len(plan.Blockers) > 0 {
+		res.Outcome, res.OutcomeReasons = OutcomeCouldNot, plan.Blockers
+		if plan.Outcome == OutcomeMetadata {
+			res.Outcome = OutcomeMetadata
+		}
 		return res, errors.New("cannot replay: " + strings.Join(plan.Blockers, "; "))
 	}
 	if !o.Approve {
@@ -260,6 +290,7 @@ func Replay(ctx context.Context, m *execution.Manager, r *Receipt, receiptPath s
 	if nr, _, err := Load(out, VerifyOptions{}); err == nil {
 		res.Comparison = Compare(r, nr, receiptPath, out)
 	}
+	res.Outcome, res.OutcomeReasons = classifyOutcome(plan, res.State, res.Comparison, startErr)
 	if startErr != nil {
 		return res, fmt.Errorf("replay execution did not complete cleanly: %w", startErr)
 	}

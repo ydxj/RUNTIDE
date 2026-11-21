@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/runtide/runtide/internal/domain"
-	"github.com/runtide/runtide/internal/receipts"
+	"github.com/runtide/runtide/internal/receiptcore"
 )
 
 type handler = func(w http.ResponseWriter, r *http.Request, p *principal)
@@ -612,7 +612,7 @@ func (s *Server) uploadReceipt(w http.ResponseWriter, r *http.Request, p *princi
 			}
 			return fail(400, "bad_request", "upload failed: %v", err)
 		}
-		v, err := receipts.Verify(tmp.Name(), receipts.VerifyOptions{})
+		v, err := receiptcore.Verify(tmp.Name(), receiptcore.VerifyOptions{})
 		if err != nil {
 			return err
 		}
@@ -623,13 +623,23 @@ func (s *Server) uploadReceipt(w http.ResponseWriter, r *http.Request, p *princi
 		m := v.Manifest
 		dst := s.artifactPath(v.SHA256)
 		if _, err := os.Stat(dst); err != nil {
+			// Another upload of identical content may win the race to create the
+			// file; the artifact is content-addressed, so either copy is correct.
 			if err := os.Rename(tmp.Name(), dst); err != nil {
-				return err
+				if _, statErr := os.Stat(dst); statErr != nil {
+					return err
+				}
 			}
 		}
-		var existing string
-		if err := s.db.QueryRow(`SELECT id FROM executions WHERE project_id=? AND receipt_sha=?`, pid, v.SHA256).Scan(&existing); err == nil {
-			x, _ := scanSummary(s.db.QueryRow(`SELECT `+summaryCols+` FROM executions WHERE id=?`, existing))
+		existingSummary := func() (*receiptSummary, bool) {
+			var existing string
+			if err := s.db.QueryRow(`SELECT id FROM executions WHERE project_id=? AND receipt_sha=?`, pid, v.SHA256).Scan(&existing); err != nil {
+				return nil, false
+			}
+			x, err := scanSummary(s.db.QueryRow(`SELECT `+summaryCols+` FROM executions WHERE id=?`, existing))
+			return x, err == nil
+		}
+		if x, ok := existingSummary(); ok {
 			writeJSON(w, 200, x)
 			return nil
 		}
@@ -640,6 +650,11 @@ func (s *Server) uploadReceipt(w http.ResponseWriter, r *http.Request, p *princi
 		id := domain.NewID("sx")
 		if _, err := s.db.Exec(`INSERT INTO executions(id,project_id,execution_id,receipt_sha,task,status,verification,reproducibility,isolation,signer,runtide_version,size,receipt_created_at,uploaded_at,uploaded_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			id, pid, m.ExecutionID, v.SHA256, m.Task, m.Status, m.Verification, m.Reproducibility, m.Isolation, signer, m.RuntideVersion, n, m.CreatedAt.Unix(), time.Now().Unix(), p.UserID); err != nil {
+			// A concurrent upload of the same receipt inserted first: report that one.
+			if x, ok := existingSummary(); ok {
+				writeJSON(w, 200, x)
+				return nil
+			}
 			return err
 		}
 		s.audit(r, p, "receipt.upload", id, v.SHA256[:12])
@@ -665,12 +680,12 @@ func (s *Server) execFor(p *principal, id, min string) (*receiptSummary, error) 
 	return x, nil
 }
 
-func (s *Server) loadStored(p *principal, id string) (*receiptSummary, *receipts.Receipt, *receipts.Verification, error) {
+func (s *Server) loadStored(p *principal, id string) (*receiptSummary, *receiptcore.Receipt, *receiptcore.Verification, error) {
 	x, err := s.execFor(p, id, "reader")
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	rc, v, err := receipts.Load(s.artifactPath(x.SHA256), receipts.VerifyOptions{})
+	rc, v, err := receiptcore.Load(s.artifactPath(x.SHA256), receiptcore.VerifyOptions{})
 	if err != nil {
 		return nil, nil, nil, fail(500, "corrupt_artifact", "stored receipt failed re-verification: %v", err)
 	}
@@ -714,7 +729,7 @@ func (s *Server) downloadReceipt(w http.ResponseWriter, r *http.Request, p *prin
 		}
 		defer f.Close()
 		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", `attachment; filename="`+safeFileName(x.ExecutionID)+receipts.Extension+`"`)
+		w.Header().Set("Content-Disposition", `attachment; filename="`+safeFileName(x.ExecutionID)+receiptcore.Extension+`"`)
 		s.audit(r, p, "receipt.download", x.ID, "")
 		http.ServeContent(w, r, "", time.Time{}, f)
 		return nil
@@ -763,7 +778,7 @@ func (s *Server) executionLog(w http.ResponseWriter, r *http.Request, p *princip
 		for _, c := range rc.Commands {
 			if c.Seq == seq {
 				name := rc.LogFiles[c.ID]
-				txt, err := receipts.ReadLog(s.artifactPath(x.SHA256), name)
+				txt, err := receiptcore.ReadLog(s.artifactPath(x.SHA256), name)
 				if err != nil {
 					return fail(404, "not_found", "no log for that command")
 				}
@@ -782,7 +797,7 @@ func (s *Server) executionReport(w http.ResponseWriter, r *http.Request, p *prin
 		if err != nil {
 			return err
 		}
-		h, err := receipts.HTML(rc, v)
+		h, err := receiptcore.HTML(rc, v)
 		if err != nil {
 			return err
 		}
@@ -819,7 +834,7 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request, p *principal) {
 		if err != nil {
 			return err
 		}
-		writeJSON(w, 200, receipts.Compare(ra, rb, s.artifactPath(xa.SHA256), s.artifactPath(xb.SHA256)))
+		writeJSON(w, 200, receiptcore.Compare(ra, rb, s.artifactPath(xa.SHA256), s.artifactPath(xb.SHA256)))
 		return nil
 	})(w, r, p)
 }
