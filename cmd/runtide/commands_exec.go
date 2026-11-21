@@ -60,9 +60,10 @@ func projectCmd() *cobra.Command {
 		}}
 	create.Flags().StringVar(&root, "root", "", "project directory (default: current directory)")
 	create.Flags().StringVar(&desc, "description", "", "description")
-	list := &cobra.Command{Use: "list", Short: "List projects", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error {
+	var listAll bool
+	list := &cobra.Command{Use: "list", Short: "List projects (archived ones with --all)", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error {
 		var ps []domain.Project
-		if err := callAny("projects.list", nil, &ps); err != nil {
+		if err := callAny("projects.list", map[string]any{"includeArchived": listAll}, &ps); err != nil {
 			return err
 		}
 		if jsonOut {
@@ -74,7 +75,11 @@ func projectCmd() *cobra.Command {
 			if x.GitRoot != "" {
 				git = "yes"
 			}
-			rows = append(rows, []string{x.Name, x.ID, git, x.Root})
+			name := x.Name
+			if x.Archived {
+				name += " (archived)"
+			}
+			rows = append(rows, []string{name, x.ID, git, x.Root})
 		}
 		table([]string{"PROJECT", "ID", "GIT", "ROOT"}, rows)
 		if len(rows) == 0 {
@@ -82,8 +87,130 @@ func projectCmd() *cobra.Command {
 		}
 		return nil
 	}}
-	p.AddCommand(create, list)
+	list.Flags().BoolVar(&listAll, "all", false, "include archived projects")
+
+	show := &cobra.Command{Use: "show <project>", Short: "Show a project with its settings", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		var pr domain.Project
+		if err := callAny("projects.get", map[string]string{"ref": args[0]}, &pr); err != nil {
+			return err
+		}
+		if jsonOut {
+			return printJSON(pr)
+		}
+		fmt.Printf("%s (%s)\n  root:        %s\n  description: %s\n  archived:    %v\n  default isolation: %s\n  default profile:   %s\n",
+			pr.Name, pr.ID, pr.Root, dash(pr.Description), pr.Archived, dash(pr.Settings.DefaultIsolation), dash(pr.Settings.DefaultProfile))
+		return nil
+	}}
+	var upDesc, upIso, upProfile string
+	update := &cobra.Command{Use: "update <project>", Short: "Change a project's description or defaults (flags not given are kept; use \"\" to clear)", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		var pr domain.Project
+		if err := callAny("projects.get", map[string]string{"ref": args[0]}, &pr); err != nil {
+			return err
+		}
+		if cmd.Flags().Changed("description") {
+			pr.Description = upDesc
+		}
+		if cmd.Flags().Changed("default-isolation") {
+			pr.Settings.DefaultIsolation = upIso
+		}
+		if cmd.Flags().Changed("default-profile") {
+			pr.Settings.DefaultProfile = upProfile
+		}
+		var out domain.Project
+		if err := callAny("projects.update", map[string]any{"ref": args[0], "description": pr.Description, "settings": pr.Settings}, &out); err != nil {
+			return err
+		}
+		if jsonOut {
+			return printJSON(out)
+		}
+		fmt.Printf("Project %s updated.\n", out.Name)
+		return nil
+	}}
+	update.Flags().StringVar(&upDesc, "description", "", "description")
+	update.Flags().StringVar(&upIso, "default-isolation", "", "managed | worktree | docker | wsl")
+	update.Flags().StringVar(&upProfile, "default-profile", "", "verification profile used when a workspace has no verify section")
+	archiveFn := func(archived bool) func(*cobra.Command, []string) error {
+		return func(cmd *cobra.Command, args []string) error {
+			var out domain.Project
+			if err := callAny("projects.archive", map[string]any{"ref": args[0], "archived": archived}, &out); err != nil {
+				return err
+			}
+			if jsonOut {
+				return printJSON(out)
+			}
+			if archived {
+				fmt.Printf("Project %s archived. Its workspaces, executions and receipts are kept.\n", out.Name)
+			} else {
+				fmt.Printf("Project %s restored.\n", out.Name)
+			}
+			return nil
+		}
+	}
+	archive := &cobra.Command{Use: "archive <project>", Short: "Hide a project (nothing is deleted)", Args: cobra.ExactArgs(1), RunE: archiveFn(true)}
+	unarchive := &cobra.Command{Use: "unarchive <project>", Short: "Restore an archived project", Args: cobra.ExactArgs(1), RunE: archiveFn(false)}
+	p.AddCommand(create, list, show, update, archive, unarchive)
 	return p
+}
+
+func verificationCmd() *cobra.Command {
+	v := &cobra.Command{Use: "verification", Aliases: []string{"profile"}, Short: "Reusable verification profiles"}
+	list := &cobra.Command{Use: "list", Short: "List verification profiles", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error {
+		var ps []domain.VerificationProfile
+		if err := callAny("profiles.list", nil, &ps); err != nil {
+			return err
+		}
+		if jsonOut {
+			return printJSON(ps)
+		}
+		rows := [][]string{}
+		for _, x := range ps {
+			rows = append(rows, []string{x.Name, trunc(x.Description, 50), ts(x.UpdatedAt)})
+		}
+		table([]string{"PROFILE", "DESCRIPTION", "UPDATED"}, rows)
+		if len(rows) == 0 {
+			fmt.Println("No profiles yet: runtide verification save <name> <pipeline.yaml>")
+		}
+		return nil
+	}}
+	show := &cobra.Command{Use: "show <name>", Short: "Print a profile's pipeline YAML", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		var pr domain.VerificationProfile
+		if err := callAny("profiles.get", map[string]string{"ref": args[0]}, &pr); err != nil {
+			return err
+		}
+		if jsonOut {
+			return printJSON(pr)
+		}
+		fmt.Print(pr.Pipeline)
+		return nil
+	}}
+	var desc string
+	save := &cobra.Command{Use: "save <name> <pipeline.yaml>", Short: "Create or replace a profile from a pipeline file (validated first)", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
+		b, err := os.ReadFile(args[1])
+		if err != nil {
+			return &exitError{exitUsage, err.Error()}
+		}
+		var pr domain.VerificationProfile
+		if err := callAny("profiles.save", map[string]string{"name": args[0], "description": desc, "pipeline": string(b)}, &pr); err != nil {
+			return err
+		}
+		if jsonOut {
+			return printJSON(pr)
+		}
+		fmt.Printf("Profile %s saved.\n", pr.Name)
+		return nil
+	}}
+	save.Flags().StringVar(&desc, "description", "", "description")
+	del := &cobra.Command{Use: "delete <name>", Short: "Delete a profile (projects using it as default are cleared)", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		if err := callAny("profiles.delete", map[string]string{"ref": args[0]}, nil); err != nil {
+			return err
+		}
+		if !jsonOut {
+			fmt.Printf("Profile %s deleted.\n", args[0])
+		}
+		return nil
+	}}
+	v.AddCommand(list, show, save, del)
+	return v
 }
 
 func workspaceCmd() *cobra.Command {
@@ -500,13 +627,14 @@ func runCmd() *cobra.Command {
 	events.Flags().StringVar(&search, "search", "", "text to search for")
 	events.Flags().StringVar(&severity, "severity", "", "info | warn | error")
 
-	verify := &cobra.Command{Use: "verify <id>", Short: "Run the verification pipeline (exit code 3 when verification fails)", Args: cobra.ExactArgs(1),
+	var verifyProfile string
+	verify := &cobra.Command{Use: "verify <id>", Short: "Run the verification pipeline (exit code 3 when verification fails); --profile uses a stored profile", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var out struct {
 				Results []domain.VerificationResult `json:"results"`
 				Summary verification.Summary        `json:"summary"`
 			}
-			if err := callRunning("runs.verify", map[string]string{"id": args[0]}, &out); err != nil {
+			if err := callRunning("runs.verify", map[string]string{"id": args[0], "profile": verifyProfile}, &out); err != nil {
 				return err
 			}
 			if jsonOut {
@@ -534,6 +662,7 @@ func runCmd() *cobra.Command {
 			}
 			return nil
 		}}
+	verify.Flags().StringVar(&verifyProfile, "profile", "", "use this stored verification profile instead of the workspace pipeline")
 
 	var execName string
 	exe := &cobra.Command{Use: "exec <id> -- <command> [args...]", Short: "Run an ad-hoc recorded command in the execution (needs your approval and a policy that allows it)", Args: cobra.MinimumNArgs(2),
@@ -658,6 +787,47 @@ func runCmd() *cobra.Command {
 			}
 			return nil
 		}}
+	var pruneDays int
+	var pruneDry bool
+	prune := &cobra.Command{Use: "prune --older-than <days>", Short: "Delete recorded executions that ended more than N days ago (receipt files are kept)", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if pruneDays < 1 {
+				return &exitError{exitUsage, "--older-than must be at least 1"}
+			}
+			var cnt struct {
+				Executions int64 `json:"executions"`
+			}
+			if err := callAny("runs.prune", map[string]any{"days": pruneDays, "dryRun": true}, &cnt); err != nil {
+				return err
+			}
+			if cnt.Executions == 0 || pruneDry {
+				if jsonOut {
+					return printJSON(map[string]any{"executions": cnt.Executions, "dryRun": pruneDry})
+				}
+				fmt.Printf("%d execution(s) ended more than %d days ago.\n", cnt.Executions, pruneDays)
+				return nil
+			}
+			if !yes {
+				ok, err := confirm(fmt.Sprintf("Permanently delete %d recorded execution(s) older than %d days (events, output, file changes)? Receipt files stay.", cnt.Executions, pruneDays))
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return &exitError{exitFailure, "cancelled"}
+				}
+			}
+			if err := callAny("runs.prune", map[string]any{"days": pruneDays}, &cnt); err != nil {
+				return err
+			}
+			if jsonOut {
+				return printJSON(cnt)
+			}
+			fmt.Printf("Deleted %d execution(s).\n", cnt.Executions)
+			return nil
+		}}
+	prune.Flags().IntVar(&pruneDays, "older-than", 0, "age in days (required)")
+	prune.Flags().BoolVar(&pruneDry, "dry-run", false, "only count")
+	prune.Flags().BoolVarP(&yes, "yes", "y", false, "do not ask for confirmation")
 	cleanup := &cobra.Command{Use: "cleanup [id]", Short: "Terminate orphaned processes that are verified to be RUNTIDE's own", Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !yes {
@@ -681,7 +851,7 @@ func runCmd() *cobra.Command {
 			return nil
 		}}
 	cleanup.Flags().BoolVarP(&yes, "yes", "y", false, "do not ask for confirmation")
-	r.AddCommand(create, start, list, status, logs, events, verify, exe, finish, cancel, files, diff, export, compare, orphans, cleanup)
+	r.AddCommand(create, start, list, status, logs, events, verify, exe, finish, cancel, files, diff, export, compare, orphans, cleanup, prune)
 	return r
 }
 
@@ -782,10 +952,9 @@ func receiptCmd() *cobra.Command {
 			m := r.Manifest
 			fmt.Printf("Run Receipt (format %s v%d, RUNTIDE %s)\n  execution:  %s\n  project:    %s\n  task:       %s\n  status:     %s   verification: %s   isolation: %s\n  created:    %s\n  sha256:     %s\n  integrity:  OK (%d files verified)\n",
 				m.Format, m.FormatVersion, m.RuntideVersion, m.ExecutionID, m.ProjectName, m.Task, m.Status, dash(m.Verification), m.Isolation, ts(m.CreatedAt), r.SHA256, v.FilesChecked)
+			fmt.Printf("  integrity:  %s\n  signature:  %s\n", v.Integrity, v.SignatureState)
 			if v.Signature != nil {
-				fmt.Printf("  signature:  key %s valid=%v trusted=%v\n", v.Signature.Fingerprint, v.Signature.Valid, v.Signature.Trusted)
-			} else {
-				fmt.Println("  signature:  none")
+				fmt.Printf("  signer:     key %s trusted=%v\n", v.Signature.Fingerprint, v.Signature.Trusted)
 			}
 			fmt.Printf("  reproducibility: %s\n", r.Reproduction.Class)
 			for _, x := range r.Reproduction.Reasons {
@@ -926,9 +1095,29 @@ func receiptCmd() *cobra.Command {
 			for _, x := range p.ToolIssues {
 				fmt.Println(color("33", "  tool: ") + x)
 			}
+			if len(p.Dependencies) > 0 {
+				fmt.Println("Dependencies:")
+				for _, d := range p.Dependencies {
+					have := d.Available
+					if have == "" {
+						have = "-"
+					}
+					fmt.Printf("    [%-9s] %s %s: needs %s, here %s\n", d.Status, d.Kind, d.Name, d.Required, have)
+				}
+			}
 			fmt.Println("Steps that would run:")
 			for _, x := range p.Steps {
 				fmt.Println("   ", x)
+			}
+			if len(p.Destructive) > 0 {
+				fmt.Println(color("33", "Potentially destructive operations (heuristic, not a safety guarantee):"))
+				for _, x := range p.Destructive {
+					fmt.Println("    !", x)
+				}
+			}
+			fmt.Println("Permissions this replay needs:")
+			for _, x := range p.Permissions {
+				fmt.Println("    -", x)
 			}
 			for _, x := range p.Blockers {
 				fmt.Println(color("31", "  blocked: ") + x)
@@ -953,6 +1142,12 @@ func receiptCmd() *cobra.Command {
 			err := callRunning("receipts.replay", req, &res)
 			if res.ExecutionID != "" {
 				fmt.Printf("\nReplay execution %s finished: %s\nNew receipt: %s\n", res.ExecutionID, res.State, res.ReceiptPath)
+			}
+			if res.Outcome != "" {
+				fmt.Printf("Outcome: %s\n", strings.ReplaceAll(res.Outcome, "_", " "))
+				for _, w := range res.OutcomeReasons {
+					fmt.Println("  -", w)
+				}
 			}
 			if res.Comparison != nil {
 				fmt.Printf("Verification: %s -> %s; new failures: %v; resolved: %v\n", res.Comparison.Verification.Overall[0], res.Comparison.Verification.Overall[1], res.Comparison.Verification.NewFailures, res.Comparison.Verification.Resolved)

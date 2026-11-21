@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/runtide/runtide/internal/version"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -15,17 +16,16 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/runtide/runtide/internal/api"
-	"github.com/runtide/runtide/internal/app"
 	"github.com/runtide/runtide/internal/mcpserver"
 	"github.com/runtide/runtide/internal/paths"
 )
 
 func main() {
 	level := flag.String("level", mcpserver.LevelControlled, "permission level: read | controlled | sensitive")
-	version := flag.Bool("version", false, "print version")
+	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
-	if *version {
-		fmt.Println("runtide-mcp", app.Version)
+	if *showVersion {
+		fmt.Println("runtide-mcp", version.Version)
 		return
 	}
 	home, err := paths.Home()
@@ -51,11 +51,11 @@ func main() {
 			fatal(fmt.Errorf("RUNTIDE engine did not become ready: %v", err))
 		}
 	}
-	srv, err := mcpserver.New(mcpserver.Config{Backend: c, Level: *level, Version: app.Version})
+	srv, err := mcpserver.New(mcpserver.Config{Backend: c, Level: *level, Version: version.Version})
 	if err != nil {
 		fatal(err)
 	}
-	fmt.Fprintf(os.Stderr, "runtide-mcp %s: level %s, engine pid %d\n", app.Version, *level, c.Info.PID)
+	fmt.Fprintf(os.Stderr, "runtide-mcp %s: level %s, engine pid %d\n", version.Version, *level, c.Info.PID)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	if err := srv.Run(ctx, &mcp.StdioTransport{}); err != nil && ctx.Err() == nil {
