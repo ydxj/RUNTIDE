@@ -49,6 +49,26 @@ Each check ends in exactly one status: `passed`, `failed`, `skipped`, `timed_out
 
 Optional (`required: false`) and `not_applicable` checks are shown but do not change the verdict.
 
+## Reusable profiles
+
+A **profile** is a named, stored pipeline you can apply to any execution.
+
+```powershell
+runtide verification save acceptance acceptance.yaml --description "build output and unit tests"
+runtide verification list
+runtide run verify <id> --profile acceptance
+runtide project update shop --default-profile acceptance      # used when a workspace has no verify section
+```
+
+Rules:
+
+* A profile is **validated when saved** (unknown dependencies, cycles, bad types, no checks are rejected), not when it first runs.
+* Resolution order for `run verify`: explicit `--profile`, else the workspace's own `verify` section, else the project's default
+  profile, else an error that says so.
+* Deleting a profile clears it as a project default; recorded verification results keep their check names.
+* Profiles contain commands, so **creating them is a human action**: the MCP server can list and use profiles but never write them.
+* Desktop: **Verification → Verification profiles**, and the profile picker next to **Verify** on a running execution.
+
 ## Running it
 
 ```bash
