@@ -11,9 +11,12 @@ self-hosted receipt server. No cloud account, no telemetry; nothing leaves your 
 ![Executions](docs/screenshots/executions.png)
 
 > Screenshots are captured from the running application against real executions (`tests/e2e/screenshots.spec.ts`).
-> RUNTIDE is early software (0.2.0). See [Status](#status) for what is and is not finished.
+> RUNTIDE is a release candidate (0.9.0). See [Status](#status) and [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) for what is and is not finished.
 
 ## The workflow
+
+New here? [docs/QUICKSTART.md](docs/QUICKSTART.md) takes you from install to a verified receipt; [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
+explains every page.
 
 ```powershell
 runtide project create shop --root C:\work\shop
@@ -21,7 +24,7 @@ runtide workspace create auth --project shop --config workspace.yaml     # shows
 runtide workspace approve shop/auth                                      # you approve the exact commands; agents cannot
 runtide run create --workspace shop/auth "Add login rate limiting"
 runtide run start <id>                                                   # setup, build, services: recorded
-runtide run verify <id>                                                  # real checks; exit code 3 unless "passed"
+runtide run verify <id> [--profile acceptance]                           # real checks; exit code 3 unless "passed"
 runtide run export <id> -o login.runtide.zip                             # portable, hash-listed evidence
 runtide receipt verify login.runtide.zip
 runtide run compare <good-id> <bad-id>                                   # what changed between two runs
@@ -161,16 +164,38 @@ approval, secrets are redacted, the local API is loopback + token + origin/host 
 
 ## Status
 
-0.2.0 is early software. Honest summary (details and test evidence in
-[docs/DEVELOPMENT_PROGRESS.md](docs/DEVELOPMENT_PROGRESS.md)):
+0.9.0 is the release candidate for 1.0.0. Evidence is in [docs/TESTING.md](docs/TESTING.md); the full list of limitations is in
+[docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
 
-* **Implemented and tested**: workspaces and lifecycle, managed and worktree isolation, recorder, verification, file changes,
-  receipts (export/import/verify/inspect/HTML/sign/compare/replay), orphan recovery, CLI, MCP server (tested with the SDK
-  client), self-hosted server on SQLite, desktop pages, migration with automatic backup.
-* **Implemented, not run end to end**: Docker and WSL2 isolation (command wrapping and validation are unit-tested only),
-  the Dockerfile/compose deployment (no Docker engine was available), Claude Code and Codex registration steps.
+* **Implemented and tested on Windows**: projects (edit, archive, defaults), workspaces and lifecycle, managed, worktree and
+  **WSL2** isolation (a real Ubuntu distribution), the recorder, verification pipelines and reusable profiles, file changes, Run
+  Receipts (export, import, verify with separate integrity/signature states, inspect, HTML, sign, compare, replay with
+  pre-flight and approval), orphan recovery, retention, the CLI, the MCP server (SDK client and real stdio), the desktop pages,
+  the installer (fresh, upgrade from 0.2.0 with data kept, uninstall), and the self-hosted server including a **Linux build run
+  in WSL2**.
+* **Not run for real**: Docker isolation (the engine was not running; failure and no-fallback paths are tested), the server
+  container image, and Claude Code / Codex (no client available).
 * **Not implemented**: PostgreSQL for the server, PDF reports, a web UI for the server.
-* Binaries are unsigned (SmartScreen will warn); the product name has not been legally cleared.
+* Binaries are unsigned (SmartScreen will warn); the product name has not been legally cleared; no external security audit
+  ([docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md) is a self-review).
+
+## Documentation
+
+Start: [Quick start](docs/QUICKSTART.md) · [User guide](docs/USER_GUIDE.md) · [Installation](docs/INSTALLATION.md) ·
+[Windows setup](docs/WINDOWS_SETUP.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
+
+Reference: [CLI](docs/CLI_REFERENCE.md) · [API](docs/API_REFERENCE.md) · [Run Receipt specification](docs/RUN_RECEIPT_SPEC.md) ·
+[Verification](docs/VERIFICATION.md) · [Configuration](docs/CONFIGURATION.md) · [Database](docs/DATABASE.md)
+
+How it works: [Architecture](docs/ARCHITECTURE.md) · [Execution capsules](docs/EXECUTION_CAPSULES.md) ·
+[Execution recording](docs/EXECUTION_RECORDING.md) · [Run Receipts](docs/RUN_RECEIPTS.md) · [Reproduction](docs/REPRODUCTION.md)
+
+Integrations and operations: [MCP](docs/MCP_INTEGRATION.md) · [Claude Code](docs/CLAUDE_CODE_INTEGRATION.md) ·
+[Codex](docs/CODEX_INTEGRATION.md) · [Self-hosting](docs/SELF_HOSTING.md)
+
+Trust: [Security model](docs/SECURITY_MODEL.md) · [Security review](docs/SECURITY_REVIEW.md) ·
+[Known limitations](docs/KNOWN_LIMITATIONS.md) · [Testing](docs/TESTING.md) · [Release notes](docs/RELEASE_NOTES.md) ·
+[Development progress](docs/DEVELOPMENT_PROGRESS.md)
 
 ## Roadmap
 

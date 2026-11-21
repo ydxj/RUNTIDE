@@ -138,6 +138,19 @@ verify:
     await page.screenshot({ path: join(out, `${name}.png`) })
   }
 
+  // A reusable verification profile for the Verification page.
+  const profFile = join(execDir, 'acceptance.yaml')
+  writeFileSync(
+    profFile,
+    `name: acceptance
+checks:
+  - {name: build-output, type: file, path: result.txt}
+  - {name: unit-tests, command: node, args: ['-e', "process.exit(0)"], timeout_sec: 60}
+`,
+  )
+  must(app.cli('verification', 'save', 'acceptance', profFile, '--description', 'Build output exists and unit tests exit 0'))
+  must(app.cli('project', 'update', 'webshop', '--default-profile', 'acceptance', '--description', 'Demo web shop'))
+
   await shot('overview', /^Overview/, async () => {
     await page.waitForTimeout(6000) // overview polls executions every 5s
   })
@@ -175,6 +188,15 @@ verify:
     await page.waitForTimeout(1500)
   })
   await shot('integrations', /^Integrations/)
+  await shot('receipt-replay-preflight', /^Receipts/, async () => {
+    await page.getByRole('row', { name: /FAILED/ }).first().getByRole('button', { name: 'Inspect', exact: true }).click()
+    await page.getByRole('button', { name: /Replay pre-flight/ }).click()
+    await page.getByText('Permissions this replay needs').waitFor()
+    await page.waitForTimeout(500)
+  })
+  await page.keyboard.press('Escape')
+  await shot('settings', /^Settings/)
+
   await shot('logs', /^Service logs/)
   await shot('resources', /^Resources/)
   await shot('environment', /^Environment/, async () => {

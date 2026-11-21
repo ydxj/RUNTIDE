@@ -39,6 +39,7 @@ func TestMain(m *testing.M) {
 	}
 	cli = build("runtide.exe", "./cmd/runtide")
 	helper = build("helper.exe", "./tests/scenario/helper")
+	build("runtide-mcp.exe", "./cmd/runtide-mcp") // next to runtide.exe, where `runtide mcp` looks for it
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)
@@ -307,4 +308,175 @@ func TestCancelStopsEverythingAndInterruptedRecovery(t *testing.T) {
 	rcpt := filepath.Join(t.TempDir(), "i.runtide.zip")
 	r.ok("run", "export", id2, "-o", rcpt)
 	assert.Contains(t, r.ok("receipt", "inspect", rcpt), "INTERRUPTED")
+}
+
+func TestProjectsProfilesRetentionAndSettingsThroughTheCLI(t *testing.T) {
+	r := &rt{t: t, home: t.TempDir()}
+	t.Cleanup(func() { r.run("daemon", "stop") })
+	root := t.TempDir()
+	h := strings.ReplaceAll(helper, `\`, "/")
+	r.ok("project", "create", "shop", "--root", root)
+
+	// Profiles: validated on save, listed, shown, reused by two executions.
+	bad := filepath.Join(t.TempDir(), "bad.yaml")
+	require.NoError(t, os.WriteFile(bad, []byte("name: x\nchecks: []\n"), 0o644))
+	_, errs, code := r.run("verification", "save", "bad", bad)
+	assert.NotEqual(t, 0, code)
+	assert.Contains(t, errs, "no checks")
+	prof := filepath.Join(t.TempDir(), "p.yaml")
+	require.NoError(t, os.WriteFile(prof, []byte("name: built\nchecks:\n  - {name: out, type: file, path: result/out.txt, contains: compiled}\n"), 0o644))
+	r.ok("verification", "save", "built", prof, "--description", "build output exists")
+	assert.Contains(t, r.ok("verification", "list"), "built")
+	assert.Contains(t, r.ok("verification", "show", "built"), "result/out.txt")
+
+	cfgOf := func(task string) string {
+		p := filepath.Join(t.TempDir(), "w.yaml")
+		y := fmt.Sprintf("version: 1\ntask: %s\nstart:\n  - {name: compile, command: '%s', args: [write, result/out.txt, compiled]}\n", task, h)
+		require.NoError(t, os.WriteFile(p, []byte(y), 0o644))
+		return p
+	}
+	r.ok("workspace", "create", "one", "--project", "shop", "--config", cfgOf("first"), "--yes")
+	var runs []map[string]any
+	r.ok("run", "create", "--workspace", "shop/one")
+	jsonOf(t, r.ok("run", "list", "--json"), &runs)
+	id := runs[0]["id"].(string)
+	r.ok("run", "start", id, "--yes")
+	_, errs, code = r.run("run", "verify", id)
+	assert.NotEqual(t, 0, code, "no verify section and no default profile")
+	assert.Contains(t, errs, "no verification defined")
+	out := r.ok("run", "verify", id, "--profile", "built")
+	assert.Contains(t, out, "Overall: passed")
+	assert.Contains(t, r.ok("run", "status", id), "COMPLETED")
+
+	// Project defaults: a default profile is honoured by a second execution.
+	r.ok("project", "update", "shop", "--description", "demo shop", "--default-profile", "built")
+	assert.Contains(t, r.ok("project", "show", "shop"), "default profile:   built")
+	r.ok("workspace", "reopen", "shop/one")
+	r.ok("run", "create", "--workspace", "shop/one", "second")
+	jsonOf(t, r.ok("run", "list", "--json", "--state", "CREATED"), &runs)
+	id2 := runs[0]["id"].(string)
+	r.ok("run", "start", id2, "--yes")
+	assert.Contains(t, r.ok("run", "verify", id2), "Overall: passed")
+
+	// Comparing two executions uses throw-away receipts: they must not appear in the receipt index
+	// (a phantom entry would point at a deleted file) nor leave events behind.
+	r.ok("run", "compare", id, id2)
+	var recs []map[string]any
+	jsonOf(t, r.ok("receipt", "list", "--json"), &recs)
+	assert.Empty(t, recs, "compare must not register receipts")
+	assert.NotContains(t, r.ok("run", "events", id, "--type", "receipt.generated"), "receipt.generated")
+
+	// Archive: hidden from the default list, kept with --all, blocks new workspaces; unarchive restores.
+	r.ok("project", "archive", "shop")
+	assert.NotContains(t, r.ok("project", "list"), "shop")
+	assert.Contains(t, r.ok("project", "list", "--all"), "shop (archived)")
+	_, errs, code = r.run("workspace", "create", "two", "--project", "shop", "--config", cfgOf("x"), "--yes")
+	assert.NotEqual(t, 0, code)
+	assert.Contains(t, errs, "archived")
+	assert.Contains(t, r.ok("run", "status", id), "COMPLETED", "history survives archiving")
+	r.ok("project", "unarchive", "shop")
+	assert.Contains(t, r.ok("project", "list"), "shop")
+
+	// Retention: nothing is old, dry-run and real prune both report zero and delete nothing.
+	assert.Contains(t, r.ok("run", "prune", "--older-than", "1", "--dry-run"), "0 execution(s)")
+	assert.Contains(t, r.ok("run", "prune", "--older-than", "1", "--yes"), "0 execution(s)")
+	_, _, code = r.run("run", "prune")
+	assert.Equal(t, 2, code, "missing --older-than is a usage error")
+	assert.Contains(t, r.ok("run", "status", id), "COMPLETED")
+
+	// Settings: execution limits are validated and persisted.
+	_, errs, code = r.run("config", "set", "execMaxOutputMB", "0")
+	assert.NotEqual(t, 0, code)
+	assert.Contains(t, errs, "execMaxOutputMB")
+	r.ok("config", "set", "execMaxOutputMB", "16")
+	assert.Contains(t, r.ok("config"), "16")
+}
+
+func TestDiagnosticsAndMCPGroupsTellTheTruth(t *testing.T) {
+	r := &rt{t: t, home: t.TempDir()}
+	t.Cleanup(func() { r.run("daemon", "stop") })
+
+	var rows []struct {
+		Level     int
+		Name      string
+		Available bool
+		Detail    string
+	}
+	jsonOf(t, r.ok("diagnostics", "isolation", "--json"), &rows)
+	require.Len(t, rows, 4)
+	assert.True(t, rows[0].Available, "managed is always available")
+	for _, row := range rows {
+		assert.NotEmpty(t, row.Detail, "every level explains its status: %s", row.Name)
+	}
+
+	// MCP: configuration printing changes nothing; check performs a real handshake and calls.
+	out := r.ok("mcp", "config", "--level", "read")
+	assert.Contains(t, out, "claude mcp add runtide")
+	assert.Contains(t, out, "--level read")
+	_, errs, code := r.run("mcp", "config", "--level", "root")
+	assert.Equal(t, 2, code, "an unknown permission level is a usage error")
+	assert.Contains(t, errs, "unknown permission level")
+	for level, want := range map[string]int{"read": 9, "controlled": 14, "sensitive": 18} {
+		var chk struct {
+			Tools []string
+			Calls map[string]string
+		}
+		jsonOf(t, r.ok("mcp", "check", "--level", level, "--json"), &chk)
+		assert.Len(t, chk.Tools, want, level)
+		assert.Equal(t, "ok", chk.Calls["list_projects"], level)
+	}
+}
+
+// The server also builds for Linux (it is what the Docker image contains). This
+// runs that Linux binary inside WSL2 against a receipt produced on Windows, so
+// the receipt format and the server are exercised across operating systems.
+func TestLinuxServerVerifiesAWindowsReceiptInsideWSL(t *testing.T) {
+	if _, err := exec.LookPath("wsl.exe"); err != nil {
+		t.Skip("WSL is not installed; the Linux server was NOT exercised")
+	}
+	wsl := func(args ...string) (string, error) {
+		out, err := exec.Command("wsl.exe", args...).CombinedOutput()
+		return strings.ReplaceAll(strings.ReplaceAll(string(out), "\x00", ""), "\r", ""), err
+	}
+	if _, err := wsl("--exec", "true"); err != nil {
+		t.Skip("no usable WSL distribution; the Linux server was NOT exercised")
+	}
+
+	r := &rt{t: t, home: t.TempDir()}
+	t.Cleanup(func() { r.run("daemon", "stop") })
+	project := t.TempDir()
+	port := freePort(t)
+	cfg := writeConfig(t, t.TempDir(), port, false)
+	r.ok("project", "create", "lin", "--root", project)
+	r.ok("workspace", "create", "w", "--project", "lin", "--config", cfg, "--yes")
+	r.ok("run", "create", "--workspace", "lin/w")
+	var runs []map[string]any
+	jsonOf(t, r.ok("run", "list", "--json"), &runs)
+	id := runs[0]["id"].(string)
+	r.ok("run", "start", id, "--yes")
+	r.ok("run", "verify", id)
+	rcpt := filepath.Join(t.TempDir(), "win.runtide.zip")
+	r.ok("run", "export", id, "-o", rcpt)
+
+	bin := filepath.Join(t.TempDir(), "runtide-server-linux")
+	build := exec.Command("go", "build", "-trimpath", "-o", bin, "./cmd/runtide-server")
+	build.Dir = repoRoot()
+	build.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0")
+	if o, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("the server must build for Linux (the Docker image depends on it): %v\n%s", err, o)
+	}
+	wp := func(p string) string {
+		out, err := wsl("--exec", "wslpath", "-a", p)
+		require.NoError(t, err, out)
+		return strings.TrimSpace(out)
+	}
+	script := filepath.Join(repoRoot(), "tests", "linux", "server-smoke.sh")
+	out, err := wsl("--exec", "bash", wp(script), wp(bin), wp(rcpt))
+	require.NoError(t, err, out)
+	assert.Contains(t, out, "uname: Linux")
+	assert.Contains(t, out, `healthz: {"status":"ok"`)
+	assert.Contains(t, out, "unauthenticated /projects: HTTP 401")
+	assert.Contains(t, out, "HTTP 201", "a receipt made on Windows is verified and stored by the Linux server")
+	assert.Contains(t, out, "report mentions integrity: 1")
+	assert.Contains(t, out, "truncated upload: HTTP 422", "a damaged archive is refused")
 }
