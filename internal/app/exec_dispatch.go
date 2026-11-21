@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/runtide/runtide/internal/config"
 	"github.com/runtide/runtide/internal/domain"
 	"github.com/runtide/runtide/internal/execution"
 	"github.com/runtide/runtide/internal/files"
@@ -71,17 +72,92 @@ func (e *Engine) receiptPath(ref string) (string, error) {
 // the method does not belong to this group.
 func (e *Engine) dispatchExec(ctx context.Context, method string, raw json.RawMessage) (res any, handled bool, err error) {
 	p := func(v any) error { return strictDecode(raw, method, v) }
-	if !strings.HasPrefix(method, "projects.") && !strings.HasPrefix(method, "ws.") && !strings.HasPrefix(method, "runs.") && !strings.HasPrefix(method, "receipts.") {
+	if !strings.HasPrefix(method, "projects.") && !strings.HasPrefix(method, "profiles.") && !strings.HasPrefix(method, "ws.") && !strings.HasPrefix(method, "runs.") && !strings.HasPrefix(method, "receipts.") {
 		return nil, false, nil
 	}
 	switch method {
 	// ---- projects
 	case "projects.list":
-		ps, err := e.Store.ListProjects()
-		if ps == nil {
-			ps = []*domain.Project{}
+		var a struct {
+			IncludeArchived bool `json:"includeArchived"`
+		}
+		if err := p(&a); err != nil {
+			return nil, true, err
+		}
+		all, err := e.Store.ListProjects()
+		ps := []*domain.Project{}
+		for _, pr := range all {
+			if a.IncludeArchived || !pr.Archived {
+				ps = append(ps, pr)
+			}
 		}
 		return ps, true, err
+	case "projects.get":
+		var a struct {
+			Ref string `json:"ref"`
+		}
+		if err := p(&a); err != nil {
+			return nil, true, err
+		}
+		pr, err := e.Store.GetProject(a.Ref)
+		return pr, true, err
+	case "projects.update":
+		var a struct {
+			Ref         string                 `json:"ref"`
+			Description string                 `json:"description"`
+			Settings    domain.ProjectSettings `json:"settings"`
+		}
+		if err := p(&a); err != nil {
+			return nil, true, err
+		}
+		pr, err := e.Exec.UpdateProject(a.Ref, a.Description, a.Settings)
+		return pr, true, err
+	case "projects.archive":
+		var a struct {
+			Ref      string `json:"ref"`
+			Archived bool   `json:"archived"`
+		}
+		if err := p(&a); err != nil {
+			return nil, true, err
+		}
+		pr, err := e.Exec.ArchiveProject(a.Ref, a.Archived)
+		return pr, true, err
+
+	// ---- verification profiles
+	case "profiles.list":
+		ps, err := e.Store.ListProfiles()
+		if ps == nil {
+			ps = []*domain.VerificationProfile{}
+		}
+		return ps, true, err
+	case "profiles.get":
+		var a struct {
+			Ref string `json:"ref"`
+		}
+		if err := p(&a); err != nil {
+			return nil, true, err
+		}
+		pr, err := e.Store.GetProfile(a.Ref)
+		return pr, true, err
+	case "profiles.save":
+		var a struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			Pipeline    string `json:"pipeline"`
+		}
+		if err := p(&a); err != nil {
+			return nil, true, err
+		}
+		pr, err := e.Exec.SaveProfile(a.Name, a.Description, a.Pipeline)
+		return pr, true, err
+	case "profiles.delete":
+		var a struct {
+			Ref string `json:"ref"`
+		}
+		if err := p(&a); err != nil {
+			return nil, true, err
+		}
+		return nil, true, e.Exec.DeleteProfile(a.Ref)
 	case "projects.create":
 		var a struct{ Name, Root, Description string }
 		if err := p(&a); err != nil {
@@ -244,8 +320,9 @@ func (e *Engine) dispatchExec(ctx context.Context, method string, raw json.RawMe
 		return d, true, err
 	case "runs.start", "runs.finish", "runs.cancel", "runs.verify":
 		var a struct {
-			ID     string `json:"id"`
-			Reason string `json:"reason"`
+			ID      string `json:"id"`
+			Reason  string `json:"reason"`
+			Profile string `json:"profile"`
 		}
 		if err := p(&a); err != nil {
 			return nil, true, err
@@ -267,6 +344,10 @@ func (e *Engine) dispatchExec(ctx context.Context, method string, raw json.RawMe
 			}
 			e.Store.Audit("local", "run.cancel", x.ID, a.Reason)
 			return nil, true, e.Exec.Cancel(x.ID, a.Reason)
+		}
+		if a.Profile != "" {
+			results, sum, err := e.Exec.VerifyWithProfile(ctx, x.ID, a.Profile)
+			return map[string]any{"results": results, "summary": sum}, true, err
 		}
 		results, sum, err := e.Exec.Verify(ctx, x.ID, nil)
 		return map[string]any{"results": results, "summary": sum}, true, err
@@ -339,6 +420,16 @@ func (e *Engine) dispatchExec(ctx context.Context, method string, raw json.RawMe
 			return nil, true, err
 		}
 		return e.fileDiff(a.ID, a.Path)
+	case "runs.prune":
+		var a struct {
+			Days   int  `json:"days"`
+			DryRun bool `json:"dryRun"`
+		}
+		if err := p(&a); err != nil {
+			return nil, true, err
+		}
+		n, err := e.PruneExecutions(a.Days, a.DryRun)
+		return map[string]any{"executions": n, "dryRun": a.DryRun}, true, err
 	case "runs.orphans":
 		o, err := e.Exec.Orphans()
 		if o == nil {
@@ -517,9 +608,9 @@ func (e *Engine) fileDiff(execID, rel string) (any, bool, error) {
 	if err != nil {
 		return nil, true, fmt.Errorf("no baseline for %s (new, binary, large or excluded files have none)", rel)
 	}
-	after, err := os.ReadFile(filepath.Join(ws.Dir, filepath.FromSlash(rel)))
-	if err != nil {
-		after = nil
+	var after []byte
+	if full, rerr := config.ResolveInside(ws.Dir, rel); rerr == nil {
+		after, _ = os.ReadFile(full)
 	}
 	if !files.IsText(after) && len(after) > 0 {
 		return nil, true, errors.New("current file is binary")
@@ -542,7 +633,14 @@ func (e *Engine) compareRefs(a, b string) (any, bool, error) {
 			return "", nil, err
 		}
 		out := filepath.Join(dir, x.ID+receipts.Extension)
-		if _, err := receipts.Export(e.Exec, x.ID, out, receipts.BuildOptions{}); err != nil {
+		// Build in memory and write a throw-away file: Export would also register the
+		// archive in the receipt index and record a receipt.generated event, leaving a
+		// phantom entry behind once the temporary directory is removed.
+		data, _, err := receipts.Build(e.Exec, x.ID, receipts.BuildOptions{})
+		if err == nil {
+			err = os.WriteFile(out, data, 0o600)
+		}
+		if err != nil {
 			_ = os.RemoveAll(dir)
 			return "", nil, err
 		}

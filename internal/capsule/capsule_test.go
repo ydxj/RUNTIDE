@@ -81,7 +81,9 @@ func TestRunCapturesStreamsExitCodeAndFiltersEnvironment(t *testing.T) {
 	assert.Contains(t, txt, "stdout:hello out")
 	assert.Contains(t, txt, "stderr:hello err")
 	assert.Contains(t, txt, "visible: yes")
-	assert.Contains(t, txt, "leaked: \n", "parent secrets must not be inherited")
+	// The leaked value must be empty. stdout and stderr lines interleave, so this
+	// line may be the last one and carry no trailing newline.
+	assert.Regexp(t, `leaked: (\n|$)`, txt, "parent secrets must not be inherited")
 	assert.NotContains(t, txt, "s3cret")
 	assert.NotZero(t, s.pid)
 	assert.NotZero(t, s.start)
