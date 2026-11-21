@@ -348,7 +348,7 @@ func execute(ctx context.Context, env Env, c Check, r *domain.VerificationResult
 	case "command":
 		dir := env.Dir()
 		if c.Dir != "" {
-			d, err := config.ResolveDir(env.Dir(), c.Dir)
+			d, err := config.ResolveInside(env.Dir(), c.Dir)
 			if err != nil {
 				fail(r, "%v", err)
 				return
@@ -495,7 +495,7 @@ func pollHTTP(ctx context.Context, c Check, r *domain.VerificationResult) {
 }
 
 func checkFile(env Env, c Check, r *domain.VerificationResult) {
-	p, err := config.ResolveDir(env.Dir(), c.Path)
+	p, err := config.ResolveInside(env.Dir(), c.Path)
 	if err != nil {
 		fail(r, "%v", err)
 		return

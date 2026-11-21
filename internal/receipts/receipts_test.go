@@ -305,6 +305,55 @@ func TestSigning(t *testing.T) {
 	assert.False(t, v.Valid)
 }
 
+func TestIntegrityAndSignatureStatesAreDistinct(t *testing.T) {
+	r := newRig(t)
+	id := r.run(t, "auth", "t", goodYAML("a"), true)
+	kp, err := GenerateKey(filepath.Join(t.TempDir(), "k.json"))
+	require.NoError(t, err)
+
+	unsigned := export(t, r, id, BuildOptions{})
+	v, _ := Verify(unsigned, VerifyOptions{})
+	assert.Equal(t, "verified", v.Integrity)
+	assert.Equal(t, "unavailable", v.SignatureState, "an unsigned receipt is not an invalid one")
+	assert.True(t, v.Valid)
+
+	signed := export(t, r, id, BuildOptions{Sign: kp})
+	v, _ = Verify(signed, VerifyOptions{})
+	assert.Equal(t, "verified", v.Integrity)
+	assert.Equal(t, "verified", v.SignatureState)
+
+	// Signature broken, files intact: integrity holds, the signature does not.
+	badSig := rewrite(t, signed, func(n string, b []byte) ([]byte, bool) {
+		if n == "signature.json" {
+			return bytes.Replace(b, []byte(`"signature": "`), []byte(`"signature": "00`), 1)[:len(b)], true
+		}
+		return b, true
+	}, nil)
+	v, _ = Verify(badSig, VerifyOptions{})
+	assert.Equal(t, "verified", v.Integrity)
+	assert.Equal(t, "invalid", v.SignatureState)
+	assert.False(t, v.Valid, "an invalid signature fails the receipt")
+
+	// A modified log with an intact signature file: integrity fails.
+	tampered := rewrite(t, signed, func(n string, b []byte) ([]byte, bool) {
+		if strings.HasPrefix(n, "logs/") {
+			return append(b, []byte("forged line\n")...), true
+		}
+		return b, true
+	}, nil)
+	v, _ = Verify(tampered, VerifyOptions{})
+	assert.Equal(t, "failed", v.Integrity)
+	assert.False(t, v.Valid)
+
+	// Not an archive at all.
+	junk := filepath.Join(t.TempDir(), "junk.runtide.zip")
+	require.NoError(t, os.WriteFile(junk, []byte("not a zip"), 0o644))
+	v, _ = Verify(junk, VerifyOptions{})
+	if v != nil {
+		assert.Equal(t, "failed", v.Integrity)
+	}
+}
+
 func TestImportIsContentAddressedAndIdempotent(t *testing.T) {
 	r := newRig(t)
 	id := r.run(t, "auth", "t", goodYAML("a"), true)
@@ -365,7 +414,7 @@ verify:
 	c := Compare(ra, rb, pa, pb)
 	assert.True(t, c.SameProject)
 	assert.Equal(t, [2]string{"passed", "failed"}, c.Verification.Overall)
-	assert.Equal(t, []string{"artifact"}, c.Verification.StatusChanges[0:1][0].Name2())
+	assert.Equal(t, "artifact", c.Verification.StatusChanges[0].Name)
 	assert.Contains(t, c.Verification.NewFailures, "artifact")
 	assert.NotEmpty(t, c.Commands.OnlyInB, "the extra command is reported as new")
 	assert.Contains(t, strings.Join(c.Notes, " "), "does not make two executions equivalent")
@@ -381,9 +430,6 @@ verify:
 	assert.Equal(t, len(ra.Commands), self.Commands.Unchanged)
 	assert.NotEmpty(t, self.Notes)
 }
-
-// Name2 helps the table-driven assertion above read naturally.
-func (s StatusChange) Name2() []string { return []string{s.Name} }
 
 func TestReproducibilityClassification(t *testing.T) {
 	r := newRig(t)
@@ -498,6 +544,19 @@ verify:
 	assert.NotEmpty(t, plan.Steps)
 	assert.NotEmpty(t, plan.ToolIssues, "the recorded Go 1.2.3 differs from the installed one; the mismatch must be reported")
 	assert.Equal(t, ReproPartial, plan.Class, "tool differences demote full to partial")
+	var sawToolDiff, sawSource bool
+	for _, d := range plan.Dependencies {
+		if d.Kind == "tool" && d.Status == "different" {
+			sawToolDiff = true
+		}
+		if d.Kind == "source" && d.Status == "ok" {
+			sawSource = true
+		}
+	}
+	assert.True(t, sawToolDiff, "the pre-flight lists the differing tool as a dependency")
+	assert.True(t, sawSource)
+	assert.NotEmpty(t, plan.Permissions)
+	assert.Empty(t, plan.Destructive, "the helper commands are not destructive")
 
 	res, err := Replay(context.Background(), r.m, rc, path, ReplayOptions{ProjectDir: r.root})
 	assert.ErrorContains(t, err, "approval", "nothing runs without approval")
@@ -509,6 +568,8 @@ verify:
 	require.NotNil(t, res.Comparison)
 	assert.Equal(t, [2]string{"passed", "passed"}, res.Comparison.Verification.Overall)
 	assert.Empty(t, res.Comparison.Verification.NewFailures)
+	assert.Equal(t, OutcomePartial, res.Outcome, "same verdict, but the tool versions differ so it is not a full reproduction: %v", res.OutcomeReasons)
+	assert.NotEmpty(t, res.OutcomeReasons)
 	nv, _ := Verify(res.ReceiptPath, VerifyOptions{})
 	assert.True(t, nv.Valid)
 	// The replay ran in a worktree, never in the original directory.
@@ -570,4 +631,61 @@ func readAll2(data []byte) map[string][]byte {
 		out[f.Name] = b
 	}
 	return out
+}
+
+func TestTimelineRecordsOutputCapturedAndReceiptGenerated(t *testing.T) {
+	r := newRig(t)
+	id := r.run(t, "auth", "t", goodYAML("a"), true)
+	before, err := r.st.ListEvents(id, store.EventFilter{Types: []string{domain.EvOutputCaptured}})
+	require.NoError(t, err)
+	assert.NotEmpty(t, before, "every command records what output it captured")
+	assert.Contains(t, before[0].Data, "stdoutBytes")
+
+	p := export(t, r, id, BuildOptions{})
+	evs, err := r.st.ListEvents(id, store.EventFilter{Types: []string{domain.EvReceiptGenerated}})
+	require.NoError(t, err)
+	require.Len(t, evs, 1)
+	assert.Equal(t, false, evs[0].Data["signed"])
+
+	// The announcement is recorded after the archive exists, so it is not inside it.
+	rc, _, err := Load(p, VerifyOptions{})
+	require.NoError(t, err)
+	for _, e := range rc.Events {
+		assert.NotEqual(t, domain.EvReceiptGenerated, e.Type)
+	}
+}
+
+func TestArtifactThroughAJunctionOutOfTheWorkspaceIsRefused(t *testing.T) {
+	r := newRig(t)
+	id := r.run(t, "auth", "t", goodYAML("a"), true)
+	outside := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("TOPSECRET-VALUE"), 0o644))
+	if out, err := exec.Command("cmd", "/c", "mklink", "/J", filepath.Join(r.root, "docs"), outside).CombinedOutput(); err != nil {
+		t.Skipf("cannot create a junction here: %v %s", err, out)
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(r.root, "ok.txt"), []byte("fine"), 0o644))
+	p := filepath.Join(t.TempDir(), "x"+Extension)
+	_, err := Export(r.m, id, p, BuildOptions{Artifacts: []string{"docs/secret.txt"}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "outside the workspace")
+	_, statErr := os.Stat(p)
+	assert.True(t, os.IsNotExist(statErr), "no receipt is written when an artifact is refused")
+	// A legitimate artifact still works.
+	_, err = Export(r.m, id, p, BuildOptions{Artifacts: []string{"ok.txt"}})
+	assert.NoError(t, err)
+}
+
+// The UI iterates these lists; a receipt built from an execution without
+// verification, services or file changes must still deliver arrays.
+func TestLoadedReceiptNeverHasNullLists(t *testing.T) {
+	r := newRig(t)
+	yaml := fmt.Sprintf("version: 1\ntask: bare\nstart:\n  - {name: build, command: '%s', env: {RCPT_HELPER: build, HELPER_FILE: out.txt}}\n", exe())
+	id := r.run(t, "bare", "bare", yaml, false)
+	rc, _, err := Load(export(t, r, id, BuildOptions{}), VerifyOptions{})
+	require.NoError(t, err)
+	b, err := json.Marshal(rc)
+	require.NoError(t, err)
+	for _, k := range []string{"commands", "events", "processes", "services", "fileChanges", "reasons", "missing", "replayableSteps", "envKeys", "tools", "files"} {
+		assert.NotContains(t, string(b), `"`+k+`":null`, "%s must be [] not null", k)
+	}
 }
