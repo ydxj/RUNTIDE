@@ -81,7 +81,7 @@ func call(t *testing.T, cs *mcp.ClientSession, name string, args map[string]any)
 func TestPermissionLevelsControlWhichToolsExist(t *testing.T) {
 	read, _ := connect(t, LevelRead)
 	names := toolNames(t, read)
-	for _, n := range []string{"list_projects", "list_workspaces", "inspect_execution", "get_execution_status", "get_execution_logs", "get_execution_events", "inspect_receipt"} {
+	for _, n := range []string{"list_projects", "list_workspaces", "inspect_execution", "get_execution_status", "get_execution_logs", "get_execution_events", "inspect_receipt", "list_verification_profiles"} {
 		assert.True(t, names[n], n)
 	}
 	for _, n := range []string{"create_workspace", "start_workspace", "run_verification", "export_receipt", "run_command", "delete_workspace"} {
@@ -98,6 +98,12 @@ func TestPermissionLevelsControlWhichToolsExist(t *testing.T) {
 	sens, _ := connect(t, LevelSensitive)
 	names = toolNames(t, sens)
 	assert.True(t, names["run_command"] && names["delete_workspace"])
+	// Profiles can contain commands: agents may list and use them, never create or change them.
+	for name := range names {
+		if strings.Contains(name, "profile") {
+			assert.Equal(t, "list_verification_profiles", name, "no tool may write profiles, even at the sensitive level")
+		}
+	}
 	_, err := New(Config{Backend: engineBackend{}, Level: "root"})
 	assert.Error(t, err)
 	// Calling a tool that is not offered fails.

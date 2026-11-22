@@ -160,6 +160,14 @@ func New(cfg Config) (*mcp.Server, error) {
 			}
 			return ok(r)
 		})
+	mcp.AddTool(s, &mcp.Tool{Name: "list_verification_profiles", Description: "List reusable verification profiles (name, description). Profiles are created by the user, not by agents; pass a name to run_verification.", Annotations: ro},
+		func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, Out, error) {
+			r, err := call("profiles.list", nil)
+			if err != nil {
+				return nil, Out{}, err
+			}
+			return ok(r)
+		})
 	mcp.AddTool(s, &mcp.Tool{Name: "list_workspaces", Description: "List task workspaces with state, isolation and whether their commands are approved.", Annotations: ro},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in listIn) (*mcp.CallToolResult, Out, error) {
 			if in.Project != "" {
@@ -352,13 +360,22 @@ func New(cfg Config) (*mcp.Server, error) {
 			}
 			return ok(map[string]any{"executionId": x.ID, "state": "RUNNING", "next": "use run_verification or get_execution_status"})
 		})
-	mcp.AddTool(s, &mcp.Tool{Name: "run_verification", Description: "Run the workspace's verification pipeline against a RUNNING execution and return real per-check results. The execution ends COMPLETED only if every required check passed.", Annotations: ctl},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in refIn) (*mcp.CallToolResult, Out, error) {
+	type verifyIn struct {
+		ID      string `json:"id" jsonschema:"execution id"`
+		Profile string `json:"profile,omitempty" jsonschema:"optional name of an existing verification profile; default: the workspace's own verify section, then the project's default profile"`
+	}
+	mcp.AddTool(s, &mcp.Tool{Name: "run_verification", Description: "Run verification against a RUNNING execution and return real per-check results. Uses the workspace's verify section, the project's default profile, or the named profile. The execution ends COMPLETED only if every required check passed.", Annotations: ctl},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in verifyIn) (*mcp.CallToolResult, Out, error) {
 			if err := checkRef("id", in.ID); err != nil {
 				return nil, Out{}, err
 			}
+			if in.Profile != "" {
+				if err := checkRef("profile", in.Profile); err != nil {
+					return nil, Out{}, err
+				}
+			}
 			var out any
-			if err := b.Call("runs.verify", map[string]string{"id": in.ID}, &out); err != nil {
+			if err := b.Call("runs.verify", map[string]string{"id": in.ID, "profile": in.Profile}, &out); err != nil {
 				return nil, Out{}, err
 			}
 			return ok(out)
