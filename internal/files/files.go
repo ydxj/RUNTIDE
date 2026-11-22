@@ -282,14 +282,7 @@ func Baselines(root string, s *Snapshot, perFile, total int64) map[string][]byte
 func IsText(b []byte) bool { return utf8.Valid(b) && !bytes.Contains(b, []byte{0}) }
 
 // GitInfo describes the repository state of a directory.
-type GitInfo struct {
-	Repo   bool     `json:"repo"`
-	Root   string   `json:"root,omitempty"`
-	Head   string   `json:"head,omitempty"`
-	Branch string   `json:"branch,omitempty"`
-	Dirty  bool     `json:"dirty"`
-	Status []string `json:"status,omitempty"` // `git status --porcelain` lines (paths only; sensitive ones omitted)
-}
+type GitInfo = domain.GitInfo
 
 // Git inspects dir without changing anything.
 func Git(dir string) GitInfo {

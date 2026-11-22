@@ -55,7 +55,7 @@ verify:
   cli('run', 'export', id, '-o', rcpt)
 
   // Executions page lists it as completed and verified.
-  await page.getByRole('button', { name: /^Executions/ }).click()
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: /^Executions/ }).click()
   const row = page.getByRole('row', { name: /Build and verify/ })
   await expect(row).toBeVisible({ timeout: 15_000 })
   await expect(row).toContainText('COMPLETED')
@@ -69,7 +69,7 @@ verify:
   await expect(page.getByText('output-exists')).toBeVisible()
 
   // Receipts page lists the exported file.
-  await page.getByRole('button', { name: /^Receipts/ }).click()
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: /^Receipts/ }).click()
   await expect(page.getByText('e2e-proj').first()).toBeVisible({ timeout: 15_000 })
 
   // The receipt verifies from the CLI too (hash chain intact).
