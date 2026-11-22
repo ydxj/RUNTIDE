@@ -51,6 +51,10 @@ func TestMain(m *testing.M) {
 		os.Exit(3)
 	case "ok":
 		fmt.Println("ok")
+	case "args":
+		for _, a := range os.Args[1:] {
+			fmt.Println("ARG<" + a + ">")
+		}
 	case "sleep":
 		time.Sleep(time.Hour)
 	}

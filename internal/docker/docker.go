@@ -91,6 +91,11 @@ func GetStatus(ctx context.Context) Status {
 		s.ClientVersion = strings.TrimSpace(string(out))
 	}
 	out, err := runner(ctx, "info", "--format", "{{.ServerVersion}}")
+	if err == nil && strings.TrimSpace(string(out)) == "" {
+		// `docker info` can exit 0 with only client output when the daemon is down;
+		// a reachable daemon always reports a server version.
+		err = errors.New("the docker CLI reported no server version")
+	}
 	if err != nil {
 		s.Message = "Docker CLI is installed but the daemon is not reachable: " + err.Error()
 		if s.DesktopInstalled {

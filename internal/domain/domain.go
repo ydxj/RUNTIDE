@@ -168,6 +168,31 @@ type Project struct {
 	GitRoot     string    `json:"gitRoot,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+	// Archived projects are hidden by default and cannot get new workspaces.
+	// Their history, executions and receipts are kept.
+	Archived   bool            `json:"archived"`
+	ArchivedAt *time.Time      `json:"archivedAt,omitempty"`
+	Settings   ProjectSettings `json:"settings"`
+}
+
+// ProjectSettings are per-project defaults. Empty values mean "no default".
+type ProjectSettings struct {
+	// DefaultIsolation (managed|worktree|docker|wsl) is used when a new workspace
+	// names no isolation of its own.
+	DefaultIsolation string `json:"defaultIsolation,omitempty"`
+	// DefaultProfile is a verification profile used when a workspace defines
+	// no verify section of its own.
+	DefaultProfile string `json:"defaultProfile,omitempty"`
+}
+
+// VerificationProfile is a named, reusable verification pipeline.
+type VerificationProfile struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Pipeline    string    `json:"pipeline"` // YAML of a verification pipeline
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // Workspace is the environment of one task.
@@ -239,6 +264,8 @@ const (
 	EvExecutionCancelled   = "execution.cancelled"
 	EvExecutionCompleted   = "execution.completed"
 	EvExecutionInterrupted = "execution.interrupted"
+	EvOutputCaptured       = "output.captured"
+	EvReceiptGenerated     = "receipt.generated"
 	EvNote                 = "note"
 )
 
@@ -335,4 +362,37 @@ type AuditEvent struct {
 	Action  string    `json:"action"`
 	Subject string    `json:"subject"`
 	Detail  string    `json:"detail,omitempty"`
+}
+
+// GitInfo describes the repository state of a directory.
+type GitInfo struct {
+	Repo   bool     `json:"repo"`
+	Root   string   `json:"root,omitempty"`
+	Head   string   `json:"head,omitempty"`
+	Branch string   `json:"branch,omitempty"`
+	Dirty  bool     `json:"dirty"`
+	Status []string `json:"status,omitempty"` // `git status --porcelain` lines (paths only; sensitive ones omitted)
+}
+
+// Environment is what an execution recorded about the machine it ran on.
+type Environment struct {
+	OS             string        `json:"os"`
+	Arch           string        `json:"arch"`
+	RuntideVersion string        `json:"runtideVersion"`
+	Isolation      string        `json:"isolation"`
+	InheritEnv     bool          `json:"inheritEnv"`
+	EnvKeys        []string      `json:"envKeys"` // names only, never values
+	Tools          []ToolVersion `json:"tools"`
+	Git            GitInfo       `json:"git"`
+	CapturedAt     time.Time     `json:"capturedAt"`
+	Elevated       bool          `json:"elevated"`
+}
+
+// ToolVersion is a detected tool (no filesystem paths: they contain user names).
+type ToolVersion struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	OnPath  bool   `json:"onPath"`
+	Method  string `json:"method"`
 }
