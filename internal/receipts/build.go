@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/runtide/runtide/internal/config"
 	"github.com/runtide/runtide/internal/domain"
 	"github.com/runtide/runtide/internal/execution"
 	"github.com/runtide/runtide/internal/files"
@@ -56,6 +57,9 @@ func Export(m *execution.Manager, execID, path string, opts BuildOptions) (*Mani
 		return nil, err
 	}
 	m.St.Audit("local", "receipt.export", execID, rec.SHA256[:12])
+	// Recorded after the archive was built: this event is in the timeline, but by
+	// construction not inside the receipt it announces.
+	_, _ = m.Rec.Event(execID, domain.EvReceiptGenerated, domain.SourceObserved, domain.SevInfo, "", map[string]any{"sha256": rec.SHA256, "size": rec.Size, "signed": opts.Sign != nil})
 	return mf, nil
 }
 
@@ -176,7 +180,11 @@ func Build(m *execution.Manager, execID string, opts BuildOptions) ([]byte, *Man
 		if files_isSensitive(rel) {
 			return nil, nil, fmt.Errorf("artifact %q looks like it contains secrets and is refused", a)
 		}
-		b, err := os.ReadFile(filepath.Join(wsDir, filepath.FromSlash(rel)))
+		full, err := config.ResolveInside(wsDir, rel)
+		if err != nil {
+			return nil, nil, fmt.Errorf("artifact %q: %w", a, err)
+		}
+		b, err := os.ReadFile(full)
 		if err != nil {
 			return nil, nil, err
 		}
