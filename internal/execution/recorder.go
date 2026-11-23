@@ -41,6 +41,19 @@ type Recorder struct {
 	counts map[string]int64
 }
 
+// SetLimits replaces the storage bounds (zero fields keep the defaults).
+func (r *Recorder) SetLimits(l Limits) {
+	r.mu.Lock()
+	r.Limits = l.withDefaults()
+	r.mu.Unlock()
+}
+
+func (r *Recorder) limits() Limits {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.Limits.withDefaults()
+}
+
 // NewRecorder creates a recorder. pub may be nil.
 func NewRecorder(st *store.Store, red *redact.Redactor, pub func(string, any)) *Recorder {
 	if red == nil {
@@ -162,7 +175,7 @@ func (c *CmdRec) Line(stream, line string) {
 	} else {
 		c.Cmd.StdoutBytes += size
 	}
-	lim := c.r.Limits.withDefaults()
+	lim := c.r.limits()
 	if c.stored+size > lim.MaxCommandOutputBytes || c.lines >= lim.MaxCommandLines {
 		c.Cmd.Truncated = true
 	} else {
