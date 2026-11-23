@@ -195,7 +195,7 @@ func (m *Manager) Start(ctx context.Context, execID string) error {
 func (m *Manager) runSpec(a *activeExec, kind string, cs CommandSpec) error {
 	dir := a.dir
 	if cs.Dir != "" {
-		d, err := config.ResolveDir(a.dir, cs.Dir)
+		d, err := config.ResolveInside(a.dir, cs.Dir)
 		if err != nil {
 			return err
 		}
@@ -268,6 +268,7 @@ func (m *Manager) runCommand(parent context.Context, a *activeExec, kind, name, 
 		}
 	}
 	cr.Finish(res.ExitCode, res.Cancelled, res.TimedOut, res.Err)
+	m.ev(a.id, domain.EvOutputCaptured, domain.SevInfo, subject, map[string]any{"commandId": cmd.ID, "stdoutBytes": cmd.StdoutBytes, "stderrBytes": cmd.StderrBytes, "truncated": cmd.Truncated})
 	sev := domain.SevInfo
 	if res.Err != nil || res.ExitCode != 0 || res.TimedOut || res.Cancelled {
 		sev = domain.SevError
@@ -366,7 +367,7 @@ func (m *Manager) startService(a *activeExec, spec config.ServiceSpec) error {
 	spec.Env, spec.CleanEnv = env, !a.cfg.InheritEnv
 	dir := a.dir
 	if spec.WorkingDirectory != "" {
-		d, err := config.ResolveDir(a.dir, spec.WorkingDirectory)
+		d, err := config.ResolveInside(a.dir, spec.WorkingDirectory)
 		if err != nil {
 			return err
 		}
@@ -500,7 +501,10 @@ func (m *Manager) Verify(ctx context.Context, execID string, pipeline *verificat
 		p = a.cfg.Verify
 	}
 	if p == nil {
-		return nil, verification.Summary{}, errors.New("this workspace defines no verification pipeline (verify: section)")
+		p = m.projectDefaultPipeline(a.ws.ProjectID)
+	}
+	if p == nil {
+		return nil, verification.Summary{}, errors.New("no verification defined: this workspace has no verify section and its project has no default profile (use --profile or define a verify section)")
 	}
 	if err := p.Validate(); err != nil {
 		return nil, verification.Summary{}, err
@@ -692,27 +696,10 @@ func (m *Manager) finalize(a *activeExec, final domain.State, cause error) {
 }
 
 // Environment is what an execution recorded about the machine it ran on.
-type Environment struct {
-	OS             string        `json:"os"`
-	Arch           string        `json:"arch"`
-	RuntideVersion string        `json:"runtideVersion"`
-	Isolation      string        `json:"isolation"`
-	InheritEnv     bool          `json:"inheritEnv"`
-	EnvKeys        []string      `json:"envKeys"` // names only, never values
-	Tools          []ToolVersion `json:"tools"`
-	Git            files.GitInfo `json:"git"`
-	CapturedAt     time.Time     `json:"capturedAt"`
-	Elevated       bool          `json:"elevated"`
-}
+type Environment = domain.Environment
 
 // ToolVersion is a detected tool (no filesystem paths: they contain user names).
-type ToolVersion struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	OnPath  bool   `json:"onPath"`
-	Method  string `json:"method"`
-}
+type ToolVersion = domain.ToolVersion
 
 func (m *Manager) environmentSnapshot(ctx context.Context, a *activeExec) []byte {
 	env := Environment{OS: runtime.GOOS, Arch: runtime.GOARCH, RuntideVersion: m.Version, Isolation: a.iso.Name(), InheritEnv: a.cfg.InheritEnv, CapturedAt: time.Now().UTC()}

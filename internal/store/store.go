@@ -72,7 +72,86 @@ func (s *Store) CreateProject(p *domain.Project) error {
 func scanProject(r interface{ Scan(...any) error }) (*domain.Project, error) {
 	var p domain.Project
 	var c, u int64
-	if err := r.Scan(&p.ID, &p.Name, &p.Root, &p.Description, &p.GitRoot, &c, &u); err != nil {
+	var arch sql.NullInt64
+	var settings string
+	if err := r.Scan(&p.ID, &p.Name, &p.Root, &p.Description, &p.GitRoot, &c, &u, &arch, &settings); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	p.CreatedAt, p.UpdatedAt = fromMs(c), fromMs(u)
+	if arch.Valid {
+		t := fromMs(arch.Int64)
+		p.Archived, p.ArchivedAt = true, &t
+	}
+	_ = json.Unmarshal([]byte(settings), &p.Settings)
+	return &p, nil
+}
+
+const projectCols = `id,name,root,description,git_root,created_at,updated_at,archived_at,settings_json`
+
+// UpdateProject changes the description and per-project settings.
+func (s *Store) UpdateProject(id, description string, st domain.ProjectSettings) error {
+	b, _ := json.Marshal(st)
+	res, err := s.DB.Exec(`UPDATE projects SET description=?, settings_json=?, updated_at=? WHERE id=?`, description, string(b), ms(time.Now()), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// SetProjectArchived archives or restores a project. Nothing is deleted.
+func (s *Store) SetProjectArchived(id string, archived bool) error {
+	var v any
+	if archived {
+		v = ms(time.Now())
+	}
+	res, err := s.DB.Exec(`UPDATE projects SET archived_at=?, updated_at=? WHERE id=?`, v, ms(time.Now()), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ActiveExecutionCount counts executions of a project that are not finished.
+func (s *Store) ActiveExecutionCount(projectID string) (int, error) {
+	var n int
+	err := s.DB.QueryRow(`SELECT COUNT(*) FROM executions WHERE project_id=? AND state IN ('CONFIGURING','RUNNING','VERIFYING')`, projectID).Scan(&n)
+	return n, err
+}
+
+// PurgePhantomReceipts removes receipt index rows that point into the temporary
+// comparison directories RUNTIDE 0.2 created inside backupDir (cmp-*). Those
+// files were deleted right after the comparison, so the rows can never be opened.
+// Rows for real exports and imports are never touched.
+func (s *Store) PurgePhantomReceipts(backupDir string) (int64, error) {
+	esc := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_")
+	dir := strings.TrimRight(backupDir, `/\`)
+	var n int64
+	for _, sep := range []string{`\`, "/"} {
+		res, err := s.DB.Exec(`DELETE FROM receipts WHERE imported=0 AND path LIKE ? ESCAPE '!'`, esc.Replace(dir)+sep+"cmp-%")
+		if err != nil {
+			return n, err
+		}
+		c, _ := res.RowsAffected()
+		n += c
+	}
+	return n, nil
+}
+
+// ---- verification profiles
+
+func scanProfile(r interface{ Scan(...any) error }) (*domain.VerificationProfile, error) {
+	var p domain.VerificationProfile
+	var c, u int64
+	if err := r.Scan(&p.ID, &p.Name, &p.Description, &p.Pipeline, &c, &u); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -82,7 +161,57 @@ func scanProject(r interface{ Scan(...any) error }) (*domain.Project, error) {
 	return &p, nil
 }
 
-const projectCols = `id,name,root,description,git_root,created_at,updated_at`
+const profileCols = `id,name,description,pipeline_yaml,created_at,updated_at`
+
+// SaveProfile creates a profile or replaces the one with the same name.
+func (s *Store) SaveProfile(p *domain.VerificationProfile) error {
+	now := time.Now()
+	if old, err := s.GetProfile(p.Name); err == nil {
+		p.ID, p.CreatedAt = old.ID, old.CreatedAt
+		_, err = s.DB.Exec(`UPDATE verification_profiles SET description=?, pipeline_yaml=?, updated_at=? WHERE id=?`, p.Description, p.Pipeline, ms(now), p.ID)
+		p.UpdatedAt = now
+		return err
+	}
+	p.ID = domain.NewID("vp")
+	p.CreatedAt, p.UpdatedAt = now, now
+	_, err := s.DB.Exec(`INSERT INTO verification_profiles(`+profileCols+`) VALUES(?,?,?,?,?,?)`, p.ID, p.Name, p.Description, p.Pipeline, ms(now), ms(now))
+	return err
+}
+
+// GetProfile finds a profile by id or name.
+func (s *Store) GetProfile(ref string) (*domain.VerificationProfile, error) {
+	return scanProfile(s.DB.QueryRow(`SELECT `+profileCols+` FROM verification_profiles WHERE id=? OR name=?`, ref, ref))
+}
+
+// ListProfiles returns all profiles by name.
+func (s *Store) ListProfiles() ([]*domain.VerificationProfile, error) {
+	rows, err := s.DB.Query(`SELECT ` + profileCols + ` FROM verification_profiles ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*domain.VerificationProfile
+	for rows.Next() {
+		p, err := scanProfile(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// DeleteProfile removes a profile (recorded verification results keep the name).
+func (s *Store) DeleteProfile(ref string) error {
+	res, err := s.DB.Exec(`DELETE FROM verification_profiles WHERE id=? OR name=?`, ref, ref)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
 
 // GetProject finds a project by id or name.
 func (s *Store) GetProject(idOrName string) (*domain.Project, error) {
@@ -354,6 +483,30 @@ type ExecFilter struct {
 	ProjectID, WorkspaceID string
 	States                 []domain.State
 	Limit                  int
+}
+
+// PruneExecutions deletes ended executions (and, by cascade, their events,
+// commands, output, file changes and verification results) that ended before
+// cutoff. Executions that still have a live recorded process are never removed
+// (their evidence is needed for orphan handling). With dryRun it only counts.
+// Receipt files and receipt index rows are not touched.
+func (s *Store) PruneExecutions(cutoff time.Time, dryRun bool) (int64, error) {
+	where := `state IN ('COMPLETED','FAILED','CANCELLED','INTERRUPTED') AND COALESCE(ended_at, created_at) < ?
+	  AND id NOT IN (SELECT execution_id FROM managed_processes WHERE ended_at IS NULL)`
+	if dryRun {
+		var n int64
+		err := s.DB.QueryRow(`SELECT COUNT(*) FROM executions WHERE `+where, cutoff.Unix()).Scan(&n)
+		return n, err
+	}
+	res, err := s.DB.Exec(`DELETE FROM executions WHERE `+where, cutoff.Unix())
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	if n > 0 {
+		s.Audit("local", "executions.prune", "", fmt.Sprintf("%d executions ended before %s", n, cutoff.Format(time.RFC3339)))
+	}
+	return n, nil
 }
 
 // ListExecutions returns executions newest first.
