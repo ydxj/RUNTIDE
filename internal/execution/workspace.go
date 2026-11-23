@@ -77,6 +77,9 @@ func (m *Manager) PlanWorkspace(o WorkspaceOptions) (*WorkspacePlan, error) {
 	if err != nil {
 		return nil, fmt.Errorf("project %q: %w", o.Project, err)
 	}
+	if p.Archived {
+		return nil, fmt.Errorf("project %s is archived; restore it before creating workspaces", p.Name)
+	}
 	if !config.ValidName(o.Name) {
 		return nil, fmt.Errorf("invalid workspace name %q", o.Name)
 	}
@@ -90,6 +93,8 @@ func (m *Manager) PlanWorkspace(o WorkspaceOptions) (*WorkspacePlan, error) {
 	}
 	if o.Isolation != "" {
 		cfg.Isolation = o.Isolation
+	} else if cfg.Isolation == "" && p.Settings.DefaultIsolation != "" {
+		cfg.Isolation = p.Settings.DefaultIsolation // the project's default; validated like any other
 	}
 	iso, err := cfg.IsolationLevel()
 	if err != nil {
