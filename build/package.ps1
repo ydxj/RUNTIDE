@@ -12,13 +12,13 @@
   Nothing is signed or published.
 #>
 param(
-  [string]$Version = "0.2.0",
+  [string]$Version = "0.9.0",
   [switch]$SkipInstaller
 )
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path "$PSScriptRoot\.."
 Set-Location $root
-$ld = "-s -w -X github.com/runtide/runtide/internal/app.Version=$Version"
+$ld = "-s -w -X github.com/runtide/runtide/internal/version.Version=$Version"
 
 New-Item -ItemType Directory -Force dist | Out-Null
 Remove-Item dist\* -Recurse -Force -ErrorAction SilentlyContinue

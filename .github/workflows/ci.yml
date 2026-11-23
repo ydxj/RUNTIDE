@@ -41,6 +41,13 @@ jobs:
           for b in runtide runtide-mcp runtide-server; do
             go build -ldflags "-s -w" -o dist/$b.exe ./cmd/$b
           done
+      - name: The server builds for Linux (the container image needs it)
+        shell: bash
+        run: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o /dev/null ./cmd/runtide-server
+      - name: Race detector (server, store, verification)
+        run: |
+          $env:CGO_ENABLED = "1"
+          go test -race ./internal/server ./internal/store ./internal/verification -count=1
       - name: Build e2e host
         run: go build -o dist/e2ehost.exe ./tests/e2ehost
       - name: Playwright end-to-end tests
