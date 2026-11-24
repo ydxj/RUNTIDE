@@ -65,3 +65,15 @@ func TestActRejectsFlagInjection(t *testing.T) {
 	require.NoError(t, Stop(context.Background(), "web"))
 	assert.Equal(t, []string{"stop", "web"}, called)
 }
+
+func TestStatusTreatsEmptyServerVersionAsDaemonDown(t *testing.T) {
+	old := runner
+	defer func() { runner = old }()
+	// Real behaviour observed with Docker Desktop stopped: exit status 0, no output.
+	runner = func(ctx context.Context, args ...string) ([]byte, error) { return []byte("\n"), nil }
+	s := GetStatus(context.Background())
+	if s.CLIInstalled {
+		assert.False(t, s.DaemonAvailable, "an empty server version must never be reported as a running daemon")
+		assert.Contains(t, s.Message, "not reachable")
+	}
+}

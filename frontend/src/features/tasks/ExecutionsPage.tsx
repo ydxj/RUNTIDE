@@ -39,10 +39,11 @@ export function ExecutionsPage() {
     () =>
       call<Execution[]>('runs.list', {
         workspace: params['workspace'] ?? '',
+        project: params['project'] ?? '',
         states: state ? [state] : [],
         limit: 200,
       }),
-    [state, params['workspace']],
+    [state, params['workspace'], params['project']],
     3,
   )
   const id = params['id']
