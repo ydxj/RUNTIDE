@@ -435,3 +435,34 @@ func contains(list []string, s string) bool {
 	}
 	return false
 }
+
+// ResolveInside is ResolveDir plus containment of the *real* path: symbolic
+// links and junctions inside the root may not lead outside it. A target that
+// does not exist yet is checked through its nearest existing ancestor.
+// Use it wherever RUNTIDE reads or writes a path that came from configuration
+// or from a project's contents.
+func ResolveInside(root, rel string) (string, error) {
+	abs, err := ResolveDir(root, rel)
+	if err != nil {
+		return "", err
+	}
+	if root == "" {
+		return abs, nil
+	}
+	realRoot, err := realPath(root)
+	if err != nil {
+		return "", fmt.Errorf("workspace root %q is not accessible: %w", root, err)
+	}
+	for p := abs; ; p = filepath.Dir(p) {
+		if real, err := realPath(p); err == nil {
+			r, rerr := filepath.Rel(realRoot, real)
+			if rerr != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
+				return "", fmt.Errorf("path %q leads outside the workspace through a symbolic link or junction", rel)
+			}
+			return abs, nil
+		}
+		if next := filepath.Dir(p); next == p || len(p) <= len(root) {
+			return abs, nil
+		}
+	}
+}

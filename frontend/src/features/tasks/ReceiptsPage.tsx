@@ -4,12 +4,19 @@ import { usePoll } from '../../hooks/usePoll'
 import { call, native } from '../../services/api'
 import { bytes, since } from '../../services/format'
 import { errMsg, reportError, useUI } from '../../stores/ui'
-import type { ReceiptInspect, ReceiptRecord, ReceiptVerification } from '../../types'
+import type {
+  ReceiptInspect,
+  ReceiptRecord,
+  ReceiptVerification,
+  ReplayPlan,
+  ReplayResult,
+} from '../../types'
 import {
   Badge,
   Button,
   EmptyState,
   ErrorState,
+  Input,
   PageHeader,
   Panel,
   Spinner,
@@ -186,14 +193,13 @@ function InspectModal({
   onClose: () => void
 }) {
   const [state, setState] = useState<{ data?: ReceiptInspect; error?: string }>({})
-  const [plan, setPlan] = useState<{
-    class: string
-    reasons: string[]
-    steps: string[]
-    blockers: string[]
-    toolIssues: string[]
-    needsEnv: string[]
-  } | null>(null)
+  const ask = useUI((s) => s.ask)
+  const go = useUI((s) => s.go)
+  const [plan, setPlan] = useState<ReplayPlan | null>(null)
+  const [projectDir, setProjectDir] = useState('')
+  const [secrets, setSecrets] = useState<Record<string, string>>({})
+  const [result, setResult] = useState<ReplayResult | null>(null)
+  const [running, setRunning] = useState(false)
   usePoll(
     async () => {
       try {
@@ -207,12 +213,83 @@ function InspectModal({
     0,
   )
   const d = state.data
-  const showPlan = async () => {
+  const showPlan = async (dir = projectDir, env = secrets) => {
     try {
-      setPlan(await call('receipts.plan', { ref: reference }))
+      const p = await call<ReplayPlan>('receipts.plan', { ref: reference, projectDir: dir, env })
+      // Defensive: lists are arrays from the engine, but never let a null crash the dialog.
+      setPlan({
+        ...p,
+        reasons: p.reasons ?? [],
+        steps: p.steps ?? [],
+        needsEnv: p.needsEnv ?? [],
+        toolIssues: p.toolIssues ?? [],
+        missing: p.missing ?? [],
+        blockers: p.blockers ?? [],
+        dependencies: p.dependencies ?? [],
+        destructive: p.destructive ?? [],
+        permissions: p.permissions ?? [],
+      })
     } catch (e) {
       reportError('Could not plan replay', e)
     }
+  }
+  const browse = async () => {
+    const p = await native.pickDirectory('Choose a git checkout that contains the recorded commit')
+    if (p) {
+      setProjectDir(p)
+      await showPlan(p)
+    }
+  }
+  const runReplay = () => {
+    if (!plan) return
+    ask({
+      title: 'Run this replay?',
+      confirmLabel: 'Approve and run replay',
+      danger: plan.destructive.length > 0,
+      body: (
+        <div className="space-y-2 text-sm">
+          <p>
+            RUNTIDE will execute {plan.steps.length} recorded step(s) in a new git worktree of{' '}
+            <code>{projectDir}</code>. Nothing runs until you approve.
+          </p>
+          {plan.destructive.length > 0 && (
+            <div className="rounded border border-bad/40 bg-bad/10 p-2 text-bad">
+              <b>Potentially destructive operations (heuristic):</b>
+              <ul className="mt-1 list-disc pl-5">
+                {plan.destructive.map((x) => (
+                  <li key={x} className="break-all font-mono text-xs">
+                    {x}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <ul className="list-disc pl-5 text-muted">
+            {plan.permissions.map((x) => (
+              <li key={x}>{x}</li>
+            ))}
+          </ul>
+        </div>
+      ),
+      onConfirm: async () => {
+        setRunning(true)
+        setResult(null)
+        try {
+          setResult(
+            await call<ReplayResult>('receipts.replay', {
+              ref: reference,
+              projectDir,
+              env: secrets,
+              approve: true,
+            }),
+          )
+        } catch (e) {
+          reportError('Replay failed', e)
+        } finally {
+          setRunning(false)
+        }
+      },
+    })
   }
   return (
     <Modal title={`Receipt: ${title}`} width="max-w-4xl" onClose={onClose}>
@@ -229,17 +306,21 @@ function InspectModal({
         <div className="space-y-3 text-sm">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-ok" />
-            <b>Integrity OK</b>{' '}
+            <b>Integrity {d.verification.integrity}</b>{' '}
             <span className="text-muted">
               {d.verification.filesChecked} files match the manifest.
             </span>
-            {d.verification.signature ? (
+            {d.verification.signatureState === 'verified' && d.verification.signature && (
               <Badge tone={d.verification.signature.trusted ? 'ok' : 'warn'}>
-                signed {d.verification.signature.fingerprint}
-                {d.verification.signature.trusted ? ' (trusted)' : ' (not trusted)'}
+                signature verified · key {d.verification.signature.fingerprint}
+                {d.verification.signature.trusted ? ' (trusted)' : ' (not in your trusted list)'}
               </Badge>
-            ) : (
-              <Badge>unsigned</Badge>
+            )}
+            {d.verification.signatureState === 'unavailable' && (
+              <Badge>signature unavailable (unsigned)</Badge>
+            )}
+            {d.verification.signatureState === 'invalid' && (
+              <Badge tone="bad">signature invalid</Badge>
             )}
           </div>
           <p className="text-xs text-muted">{d.verification.authenticity}</p>
@@ -267,25 +348,115 @@ function InspectModal({
           </Panel>
           <Panel
             title={`Reproducibility: ${d.receipt.reproduction.class.replaceAll('_', ' ')}`}
-            actions={<Button onClick={() => void showPlan()}>Replay plan…</Button>}
+            actions={<Button onClick={() => void showPlan()}>Replay pre-flight…</Button>}
           >
             <List title="Why" items={d.receipt.reproduction.reasons} />
             <List title="Not captured" items={d.receipt.reproduction.missing} tone="warn" />
             {plan && (
               <div className="border-t border-line">
+                <div className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <span className="text-xs font-semibold text-muted">Source checkout</span>
+                  <Input
+                    aria-label="Project directory"
+                    className="flex-1"
+                    placeholder="Git checkout that contains the recorded commit"
+                    value={projectDir}
+                    onChange={(e) => setProjectDir(e.target.value)}
+                    onBlur={() => void showPlan()}
+                  />
+                  <Button onClick={() => void browse()}>Browse…</Button>
+                </div>
+                {plan.dependencies.length > 0 && (
+                  <div className="px-3 pb-2">
+                    <div className="mb-1 text-xs font-semibold text-muted">Dependencies</div>
+                    <ul className="space-y-0.5 text-sm">
+                      {plan.dependencies.map((x) => (
+                        <li key={x.kind + x.name} className="flex items-center gap-2">
+                          <Badge
+                            tone={
+                              x.status === 'ok' ? 'ok' : x.status === 'different' ? 'warn' : 'bad'
+                            }
+                          >
+                            {x.status}
+                          </Badge>
+                          <span className="font-medium">{x.name}</span>
+                          <span className="text-muted">
+                            needs {x.required}
+                            {x.available && `, here ${x.available}`}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {plan.needsEnv.length > 0 && (
+                  <div className="space-y-1 px-3 pb-2">
+                    <div className="text-xs font-semibold text-muted">
+                      Secret variables withheld from the receipt
+                    </div>
+                    {plan.needsEnv.map((k) => (
+                      <label key={k} className="flex items-center gap-2 text-sm">
+                        <span className="w-48 font-mono text-xs">{k}</span>
+                        <Input
+                          type="password"
+                          aria-label={`Value for ${k}`}
+                          value={secrets[k] ?? ''}
+                          onChange={(e) => setSecrets({ ...secrets, [k]: e.target.value })}
+                          onBlur={() => void showPlan()}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
                 <List
                   title="Steps a replay would run (only after you approve, in a new isolated worktree)"
                   items={plan.steps}
                 />
                 <List
-                  title="Tool differences on this machine"
-                  items={plan.toolIssues}
-                  tone="warn"
+                  title="Potentially destructive operations (heuristic, not a safety guarantee)"
+                  items={plan.destructive}
+                  tone="bad"
                 />
+                <List title="Permissions this replay needs" items={plan.permissions} />
                 <List title="Blocked because" items={plan.blockers} tone="bad" />
-                <p className="px-3 pb-3 text-xs text-muted">
-                  Run it with: runtide receipt replay &lt;file&gt; --project-dir &lt;checkout&gt;
-                </p>
+                <div className="flex items-center gap-2 px-3 pb-3">
+                  <Button
+                    variant="primary"
+                    disabled={plan.blockers.length > 0 || running}
+                    onClick={runReplay}
+                  >
+                    {running ? 'Replaying…' : 'Review and run replay…'}
+                  </Button>
+                  <span className="text-xs text-muted">
+                    Metadata-only and blocked receipts cannot be replayed.
+                  </span>
+                </div>
+                {result && (
+                  <div className="border-t border-line px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        tone={
+                          result.outcome === 'reproduced'
+                            ? 'ok'
+                            : result.outcome === 'partially_reproduced'
+                              ? 'warn'
+                              : 'bad'
+                        }
+                      >
+                        {result.outcome.replaceAll('_', ' ')}
+                      </Badge>
+                      <span className="text-muted">
+                        replay execution {result.executionId} finished {result.state}
+                      </span>
+                    </div>
+                    <List title="Why" items={result.outcomeReasons} />
+                    {result.executionId && (
+                      <Button onClick={() => go('executions', { id: result.executionId })}>
+                        Open replay execution
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </Panel>

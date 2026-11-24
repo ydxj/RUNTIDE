@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"github.com/runtide/runtide/internal/version"
 	"os"
 	"path/filepath"
 	"sync"
@@ -192,7 +193,7 @@ func (a *App) Call(method, params string) (string, error) {
 
 // Info describes how the UI is connected.
 func (a *App) Info() map[string]any {
-	return map[string]any{"mode": a.Mode(), "version": app.Version}
+	return map[string]any{"mode": a.Mode(), "version": version.Version}
 }
 
 // PickDirectory opens a native folder chooser.
