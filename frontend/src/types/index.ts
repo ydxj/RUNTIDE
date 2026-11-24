@@ -317,6 +317,9 @@ export interface Settings {
   notifications: boolean
   startWithWindows: boolean
   trustedKeys: string[] | null
+  execRetentionDays: number
+  execMaxOutputMB: number
+  execMaxEvents: number
   stopServicesOnExit: boolean
 }
 
@@ -358,6 +361,18 @@ export interface Project {
   description: string
   gitRoot?: string
   createdAt: string
+  archived: boolean
+  archivedAt?: string
+  settings: { defaultIsolation?: string; defaultProfile?: string }
+}
+
+export interface VerificationProfile {
+  id: string
+  name: string
+  description: string
+  pipeline: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface TaskWorkspace {
@@ -508,6 +523,38 @@ export interface ReceiptRecord {
   createdAt: string
 }
 
+export interface ReplayDependency {
+  kind: string
+  name: string
+  required: string
+  available: string
+  status: string
+}
+
+export interface ReplayPlan {
+  class: string
+  reasons: string[]
+  steps: string[]
+  needsEnv: string[]
+  toolIssues: string[]
+  missing: string[]
+  blockers: string[]
+  dependencies: ReplayDependency[]
+  destructive: string[]
+  permissions: string[]
+  commit?: string
+  outcome?: string
+}
+
+export interface ReplayResult {
+  plan: ReplayPlan
+  executionId: string
+  state: string
+  receiptPath: string
+  outcome: 'reproduced' | 'partially_reproduced' | 'could_not_reproduce' | 'metadata_only'
+  outcomeReasons: string[]
+}
+
 export interface ReceiptVerification {
   path: string
   sha256: string
@@ -515,6 +562,8 @@ export interface ReceiptVerification {
   problems: string[] | null
   warnings: string[] | null
   filesChecked: number
+  integrity: 'verified' | 'failed'
+  signatureState: 'verified' | 'unavailable' | 'invalid'
   manifest?: {
     executionId: string
     projectName: string

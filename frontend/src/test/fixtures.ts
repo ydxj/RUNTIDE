@@ -17,6 +17,9 @@ export const DEFAULT_SETTINGS: Settings = {
   startWithWindows: false,
   stopServicesOnExit: true,
   trustedKeys: null,
+  execRetentionDays: 0,
+  execMaxOutputMB: 8,
+  execMaxEvents: 100000,
 }
 
 export function proc(over: Partial<Process> & { pid: number; name: string }): Process {

@@ -22,6 +22,7 @@ import (
 	"github.com/runtide/runtide/internal/resources"
 	"github.com/runtide/runtide/internal/supervisor"
 	"github.com/runtide/runtide/internal/tools"
+	"github.com/runtide/runtide/internal/version"
 	"github.com/runtide/runtide/internal/winservices"
 	"github.com/runtide/runtide/internal/workspaces"
 	"github.com/runtide/runtide/internal/wsl"
@@ -43,7 +44,7 @@ func (e *Engine) Dispatch(ctx context.Context, method string, raw json.RawMessag
 	}
 	switch method {
 	case "version":
-		return map[string]any{"version": Version, "home": e.Home, "elevated": isElevated()}, nil
+		return map[string]any{"version": version.Version, "home": e.Home, "elevated": isElevated()}, nil
 	case "overview":
 		return e.Overview(ctx)
 
