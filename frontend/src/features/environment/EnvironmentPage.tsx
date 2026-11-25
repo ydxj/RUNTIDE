@@ -3,7 +3,7 @@ import { FolderOpen, RefreshCw, ScanSearch } from 'lucide-react'
 import { usePoll } from '../../hooks/usePoll'
 import { call, native } from '../../services/api'
 import { errMsg, reportError, useUI } from '../../stores/ui'
-import type { EnvReport, ToolInfo, WorkspaceRow } from '../../types'
+import type { DockerStatus, EnvReport, ToolInfo, WorkspaceRow, WslStatus } from '../../types'
 import {
   Badge,
   Button,
@@ -19,6 +19,89 @@ import {
 } from '../../components/ui/primitives'
 import { DataTable, type Column } from '../../components/ui/DataTable'
 import { Modal } from '../../components/ui/Overlays'
+
+/** Which execution isolation levels can actually run on this machine, from real probes. */
+function IsolationAvailability({ tools }: { tools: ToolInfo[] | null | undefined }) {
+  const docker = usePoll(() => call<DockerStatus>('docker.status'), [], 15)
+  const wsl = usePoll(() => call<WslStatus>('wsl.status'), [], 15)
+  const git = (tools ?? []).find((x) => x.id === 'git')
+  const distros = (wsl.data?.distros ?? []).filter((d) => !d.name.startsWith('docker-desktop'))
+  const rows: { level: string; name: string; ok: boolean | null; detail: string; scope: string }[] =
+    [
+      {
+        level: '1',
+        name: 'managed',
+        ok: true,
+        detail: 'Always available (native Windows process in a Job Object).',
+        scope:
+          'Isolates only the process tree and environment. Files and network are not isolated.',
+      },
+      {
+        level: '2',
+        name: 'worktree',
+        ok: tools ? Boolean(git?.installed) : null,
+        detail: git?.installed
+          ? `Git ${git.version} found. Needs a git repository with at least one commit.`
+          : 'Git was not found on PATH (non-git projects use a filtered copy).',
+        scope: 'A separate directory. The process can still reach the rest of your user profile.',
+      },
+      {
+        level: '3',
+        name: 'docker',
+        ok: docker.data ? docker.data.daemonAvailable : null,
+        detail: docker.data
+          ? docker.data.daemonAvailable
+            ? `Docker engine ${docker.data.serverVersion} is running.`
+            : docker.data.message || 'The Docker engine is not running.'
+          : 'Checking…',
+        scope:
+          'A container with only the workspace mounted. Not a guarantee against malicious code.',
+      },
+      {
+        level: '4',
+        name: 'wsl',
+        ok: wsl.data ? wsl.data.installed && distros.length > 0 : null,
+        detail: wsl.data
+          ? wsl.data.installed && distros.length > 0
+            ? `WSL2 distributions: ${distros.map((d) => `${d.name} (v${d.version}, ${d.state})`).join(', ')}.`
+            : wsl.data.message || 'WSL is not installed or has no distribution.'
+          : 'Checking…',
+        scope:
+          'Runs inside a WSL2 distribution. Windows drives stay mounted: not a security boundary.',
+      },
+    ]
+  return (
+    <Panel title="Execution isolation on this machine">
+      <table aria-label="Isolation availability" className="w-full text-sm">
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.name} className="border-b border-line/60 align-top last:border-0">
+              <td className="w-8 px-3 py-2 text-muted">{r.level}</td>
+              <td className="w-24 py-2 font-medium">{r.name}</td>
+              <td className="w-28 py-2">
+                {r.ok === null ? (
+                  <Badge>checking</Badge>
+                ) : r.ok ? (
+                  <Badge tone="ok">available</Badge>
+                ) : (
+                  <Badge tone="warn">unavailable</Badge>
+                )}
+              </td>
+              <td className="selectable px-3 py-2">
+                <div>{r.detail}</div>
+                <div className="text-xs text-muted">{r.scope}</div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="px-3 pb-2 text-xs text-muted">
+        RUNTIDE never falls back to a weaker level: if the chosen runtime is missing, the execution
+        fails with that reason.
+      </p>
+    </Panel>
+  )
+}
 
 function Tools() {
   const t = usePoll(() => call<ToolInfo[]>('tools.list'), [], 0)
@@ -67,25 +150,28 @@ function Tools() {
     },
   ]
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-surface">
-      {t.loading && !t.data ? (
-        <Spinner label="Detecting tools" />
-      ) : t.error ? (
-        <ErrorState message={t.error} onRetry={() => void t.reload()} />
-      ) : (
-        <DataTable
-          label="Developer tools"
-          columns={cols}
-          rows={t.data ?? []}
-          rowKey={(x) => x.id}
-          initialSort={{ key: 'name', dir: 'asc' }}
-        />
-      )}
-      <div className="flex items-center justify-between border-t border-line px-3 py-2 text-xs text-muted">
-        <span>Each tool is run to read its real version. RUNTIDE never edits PATH.</span>
-        <Button icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={() => void t.reload()}>
-          Re-scan
-        </Button>
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
+      <IsolationAvailability tools={t.data} />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-surface">
+        {t.loading && !t.data ? (
+          <Spinner label="Detecting tools" />
+        ) : t.error ? (
+          <ErrorState message={t.error} onRetry={() => void t.reload()} />
+        ) : (
+          <DataTable
+            label="Developer tools"
+            columns={cols}
+            rows={t.data ?? []}
+            rowKey={(x) => x.id}
+            initialSort={{ key: 'name', dir: 'asc' }}
+          />
+        )}
+        <div className="flex items-center justify-between border-t border-line px-3 py-2 text-xs text-muted">
+          <span>Each tool is run to read its real version. RUNTIDE never edits PATH.</span>
+          <Button icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={() => void t.reload()}>
+            Re-scan
+          </Button>
+        </div>
       </div>
     </div>
   )

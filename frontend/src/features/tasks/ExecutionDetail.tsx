@@ -19,6 +19,7 @@ import type {
   ExecutionDetail,
   OutputLine,
   ReceiptRecord,
+  VerificationProfile,
 } from '../../types'
 import {
   Badge,
@@ -51,6 +52,8 @@ export function ExecutionDetailView({ id, onBack }: { id: string; onBack: () => 
   const ask = useUI((s) => s.ask)
   const toast = useUI((s) => s.toast)
   const [tab, setTab] = useState<Tab>('Overview')
+  const [profile, setProfile] = useState('')
+  const profiles = usePoll(() => call<VerificationProfile[]>('profiles.list'), [], 0)
   const [focus, setFocus] = useState<{ commandId?: string }>({})
   const d = usePoll(() => call<ExecutionDetail>('runs.get', { id }), [id], 2)
   useEngineEvent('run', () => void d.reload())
@@ -96,11 +99,25 @@ export function ExecutionDetailView({ id, onBack }: { id: string; onBack: () => 
           </div>
         </div>
         <div className="flex shrink-0 gap-2">
+          {running && (profiles.data ?? []).length > 0 && (
+            <Select
+              aria-label="Verification profile"
+              value={profile}
+              onChange={(e) => setProfile(e.target.value)}
+            >
+              <option value="">Workspace / project default</option>
+              {(profiles.data ?? []).map((p) => (
+                <option key={p.id} value={p.name}>
+                  Profile: {p.name}
+                </option>
+              ))}
+            </Select>
+          )}
           {running && (
             <Button
               variant="primary"
               icon={<Stethoscope className="h-3.5 w-3.5" />}
-              onClick={() => void act('runs.verify', {}, 'Verification finished')}
+              onClick={() => void act('runs.verify', { profile }, 'Verification finished')}
             >
               Verify
             </Button>

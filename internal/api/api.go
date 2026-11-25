@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/runtide/runtide/internal/version"
 	"io"
 	"net"
 	"net/http"
@@ -77,7 +78,7 @@ func Serve(eng *app.Engine, kind string) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{eng: eng, home: home, token: hex.EncodeToString(tok)}
-	s.info = Info{Addr: ln.Addr().String(), Token: s.token, PID: os.Getpid(), Kind: kind, Version: app.Version, Started: time.Now()}
+	s.info = Info{Addr: ln.Addr().String(), Token: s.token, PID: os.Getpid(), Kind: kind, Version: version.Version, Started: time.Now()}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/rpc", s.guard(s.rpc))
 	mux.HandleFunc("/events", s.guard(s.events))

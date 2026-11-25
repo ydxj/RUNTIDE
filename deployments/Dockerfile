@@ -8,7 +8,7 @@ RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 ENV CGO_ENABLED=0
-RUN go build -trimpath -ldflags "-s -w -X github.com/runtide/runtide/internal/app.Version=0.2.0" \
+RUN go build -trimpath -ldflags "-s -w -X github.com/runtide/runtide/internal/version.Version=0.9.0" \
     -o /out/runtide-server ./cmd/runtide-server
 
 FROM gcr.io/distroless/static-debian12:nonroot

@@ -113,3 +113,17 @@ production build has no mock data anywhere.
 * Migrations are additive (v2); a pre-migration backup is written first ([DATABASE.md](DATABASE.md)).
 * The recorder is the single writer of evidence; receipts are built only from stored evidence.
 * The desktop app batches `log` and `exec.output` events (150 ms) before sending them to the UI.
+
+## 0.9: package layout notes
+
+* `internal/receiptcore`: the Run Receipt format, verification, signing, comparison and HTML report. **Platform independent**
+  (no process execution), so the self-hosted server builds for Linux. `internal/receipts` builds receipts from recorded
+  executions and replays them, and re-exports the core under the familiar `receipts.X` names.
+* `internal/version`: the product version, set with `-X github.com/runtide/runtide/internal/version.Version=…`. It has no
+  dependencies, so every binary (including the server) can use it.
+* `internal/domain` holds the shared data types (including `Environment`, `GitInfo`, `ToolVersion`) so both sides of the split
+  agree without importing each other.
+* `internal/config.ResolveInside` resolves paths from configuration or project contents and refuses lexical escapes **and**
+  symbolic-link/junction escapes (it asks Windows for the real path).
+* One shared core: `Engine.Dispatch` is called by the desktop app, the CLI and the MCP server; no front end has its own execution
+  logic. Verification profiles, project archiving, retention and replay pre-flight were each added once in the core.

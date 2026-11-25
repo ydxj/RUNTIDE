@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/runtide/runtide/internal/version"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -41,7 +42,7 @@ Run without arguments for a status summary.`,
 	root.AddCommand(
 		versionCmd(), statusCmd(), processesCmd(), killCmd(), portsCmd(), servicesCmd(),
 		startStopCmd("start", "Start a service"), startStopCmd("stop", "Stop a service"), startStopCmd("restart", "Restart a service"),
-		logsCmd(), stacksCmd(), stackCmd(), projectCmd(), workspaceCmd(), runCmd(), receiptCmd(), serverCmd(), doctorCmd(), envCmd(), toolsCmd(), configCmd(), daemonCmd(),
+		logsCmd(), stacksCmd(), stackCmd(), projectCmd(), workspaceCmd(), runCmd(), verificationCmd(), mcpCmd(), diagnosticsCmd(), receiptCmd(), serverCmd(), doctorCmd(), envCmd(), toolsCmd(), configCmd(), daemonCmd(),
 		dockerCmd(), wslCmd(),
 	)
 	return root
@@ -65,9 +66,9 @@ func withBackend(f func(b backend) error) error {
 func versionCmd() *cobra.Command {
 	return &cobra.Command{Use: "version", Short: "Print version information", Args: cobra.NoArgs, RunE: func(*cobra.Command, []string) error {
 		if jsonOut {
-			return printJSON(map[string]string{"version": app.Version})
+			return printJSON(map[string]string{"version": version.Version})
 		}
-		fmt.Println("runtide", app.Version)
+		fmt.Println("runtide", version.Version)
 		return nil
 	}}
 }

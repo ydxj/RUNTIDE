@@ -7,11 +7,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 
-	"github.com/runtide/runtide/internal/app"
 	"github.com/runtide/runtide/internal/server"
+	"github.com/runtide/runtide/internal/version"
 )
 
 func envOr(k, def string) string {
@@ -31,13 +32,14 @@ func main() {
 	fs.BoolVar(&o.AllowRemote, "allow-remote", os.Getenv("RUNTIDE_SERVER_ALLOW_REMOTE") == "1", "allow binding a non-loopback address")
 	fs.BoolVar(&o.BehindTLSProxy, "behind-tls-proxy", os.Getenv("RUNTIDE_SERVER_BEHIND_TLS_PROXY") == "1", "acknowledge that a TLS-terminating proxy protects this listener")
 	fs.Int64Var(&o.MaxUploadBytes, "max-upload-mb", 256, "maximum receipt upload size in MiB")
-	version := fs.Bool("version", false, "print the version and exit")
+	showVersion := fs.Bool("version", false, "print the version and exit")
 	_ = fs.Parse(os.Args[1:])
 	o.MaxUploadBytes <<= 20
-	o.Version = app.Version
+	o.Version = version.Version
+	o.Logger = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	o.AdminPassword = os.Getenv("RUNTIDE_ADMIN_PASSWORD")
-	if *version {
-		fmt.Println("runtide-server", app.Version)
+	if *showVersion {
+		fmt.Println("runtide-server", version.Version)
 		return
 	}
 	s, err := server.New(o)
@@ -53,7 +55,7 @@ func main() {
 	if o.TLSCert != "" {
 		scheme = "https"
 	}
-	fmt.Fprintf(os.Stderr, "runtide-server %s listening on %s://%s (data: %s)\n", app.Version, scheme, o.Addr, o.DataDir)
+	fmt.Fprintf(os.Stderr, "runtide-server %s listening on %s://%s (data: %s)\n", version.Version, scheme, o.Addr, o.DataDir)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	if err := s.ListenAndServe(ctx); err != nil && ctx.Err() == nil {

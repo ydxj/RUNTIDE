@@ -5,10 +5,12 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -18,7 +20,7 @@ import (
 	"time"
 
 	"github.com/runtide/runtide/internal/domain"
-	"github.com/runtide/runtide/internal/receipts"
+	"github.com/runtide/runtide/internal/receiptcore"
 )
 
 // Options configure the server.
@@ -32,6 +34,10 @@ type Options struct {
 	Version        string
 	AdminPassword  string // initial admin password; generated when empty
 	MaxUploadBytes int64  // default 256 MiB
+	// Logger receives one structured record per request (method, route, status,
+	// duration, user, client). It never receives bodies, tokens or query strings.
+	// Nil discards the records.
+	Logger *slog.Logger
 }
 
 // Server is the HTTP application.
@@ -224,8 +230,67 @@ func clientIP(r *http.Request) string {
 	return h
 }
 
+// statusWriter records the response status for the request log.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+	bytes  int64
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	if w.status == 0 {
+		w.status = code
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *statusWriter) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	n, err := w.ResponseWriter.Write(b)
+	w.bytes += int64(n)
+	return n, err
+}
+
+// Unwrap lets http.ResponseController reach the underlying writer.
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+func newRequestID() string {
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
+}
+
 func (s *Server) wrap(rt route) http.HandlerFunc {
+	inner := s.wrapInner(rt)
 	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		id := newRequestID()
+		w.Header().Set("X-Request-Id", id)
+		sw := &statusWriter{ResponseWriter: w}
+		var who string
+		inner(sw, r, &who)
+		if s.opts.Logger == nil {
+			return
+		}
+		lvl := slog.LevelInfo
+		switch {
+		case sw.status >= 500:
+			lvl = slog.LevelError
+		case sw.status == 401 || sw.status == 403 || sw.status == 429:
+			lvl = slog.LevelWarn
+		}
+		// r.URL.Path only: query strings can carry identifiers and are never logged.
+		s.opts.Logger.LogAttrs(r.Context(), lvl, "request",
+			slog.String("id", id), slog.String("method", r.Method), slog.String("path", r.URL.Path),
+			slog.Int("status", sw.status), slog.Int64("bytes", sw.bytes),
+			slog.Duration("duration", time.Since(start)), slog.String("user", who), slog.String("client", clientIP(r)))
+	}
+}
+
+func (s *Server) wrapInner(rt route) func(w http.ResponseWriter, r *http.Request, who *string) {
+	return func(w http.ResponseWriter, r *http.Request, who *string) {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
@@ -248,6 +313,7 @@ func (s *Server) wrap(rt route) http.HandlerFunc {
 				writeErr(w, fail(429, "rate_limited", "too many requests"))
 				return
 			}
+			*who = p.Username
 			if rt.Access == "admin" && p.Role != "admin" {
 				writeErr(w, fail(403, "forbidden", "administrator role required"))
 				return
@@ -353,7 +419,7 @@ type receiptSummary struct {
 }
 
 func (s *Server) artifactPath(sha string) string {
-	return filepath.Join(s.opts.DataDir, "artifacts", sha+receipts.Extension)
+	return filepath.Join(s.opts.DataDir, "artifacts", sha+receiptcore.Extension)
 }
 
 func scanSummary(row interface{ Scan(...any) error }) (*receiptSummary, error) {

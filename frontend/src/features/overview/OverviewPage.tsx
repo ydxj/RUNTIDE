@@ -2,8 +2,9 @@ import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { usePoll } from '../../hooks/usePoll'
 import { call } from '../../services/api'
 import { bytes, since, pct } from '../../services/format'
-import type { Execution, Overview, ResourceSample } from '../../types'
+import type { Execution, Overview, Project, ReceiptRecord, ResourceSample } from '../../types'
 import { useUI } from '../../stores/ui'
+import { StateBadge, verdictTone } from '../tasks/common'
 import {
   Badge,
   ErrorState,
@@ -46,6 +47,8 @@ export function OverviewPage() {
   const ov = usePoll(() => call<Overview>('overview'), [])
   const hist = usePoll(() => call<ResourceSample[]>('resources.history', { n: 120 }), [])
   const runs = usePoll(() => call<Execution[]>('runs.list', { limit: 50 }), [], 5)
+  const projects = usePoll(() => call<Project[]>('projects.list'), [], 10)
+  const receipts = usePoll(() => call<ReceiptRecord[]>('receipts.list'), [], 10)
   const xs = runs.data ?? []
   const active = xs.filter((x) => x.state === 'RUNNING' || x.state === 'VERIFYING').length
   const failed = xs.filter((x) => x.state === 'FAILED' || x.state === 'INTERRUPTED').length
@@ -118,6 +121,106 @@ export function OverviewPage() {
               sub={`${unverified} without a passing verdict`}
               onClick={() => go('verification')}
             />
+          </div>
+        )}
+
+        {runs.data && (
+          <div className="grid grid-cols-3 gap-3">
+            <Panel
+              title="Project health"
+              actions={
+                <button
+                  type="button"
+                  className="text-xs text-accent"
+                  onClick={() => go('projects')}
+                >
+                  Projects
+                </button>
+              }
+            >
+              {(projects.data ?? []).length === 0 ? (
+                <div className="p-3 text-sm text-muted">No projects registered yet.</div>
+              ) : (
+                <ul className="divide-y divide-line text-sm">
+                  {(projects.data ?? []).map((p) => {
+                    const mine = xs.filter((x) => x.projectId === p.id)
+                    const last = mine[0]
+                    const bad = mine.slice(0, 10).filter((x) => x.state === 'FAILED').length
+                    return (
+                      <li key={p.id} className="flex items-center gap-2 px-3 py-1.5">
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 truncate text-left font-medium hover:underline"
+                          onClick={() => go('executions', { project: p.name })}
+                        >
+                          {p.name}
+                        </button>
+                        {last ? (
+                          <>
+                            <StateBadge state={last.state} />
+                            <span className="w-14 text-right text-xs text-muted">
+                              {bad > 0 ? `${bad} failed` : mine.length + ' runs'}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted">no executions</span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </Panel>
+            <Panel title="Recent verification outcomes">
+              {xs.filter((x) => x.verification).length === 0 ? (
+                <div className="p-3 text-sm text-muted">No execution has been verified yet.</div>
+              ) : (
+                <ul className="divide-y divide-line text-sm">
+                  {xs
+                    .filter((x) => x.verification)
+                    .slice(0, 6)
+                    .map((x) => (
+                      <li key={x.id} className="flex items-center gap-2 px-3 py-1.5">
+                        <Badge tone={verdictTone(x.verification ?? '')}>{x.verification}</Badge>
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 truncate text-left hover:underline"
+                          onClick={() => go('executions', { id: x.id })}
+                        >
+                          {x.task || x.id}
+                        </button>
+                        <span className="text-xs text-muted">{since(x.createdAt)}</span>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </Panel>
+            <Panel
+              title="Receipt activity"
+              actions={
+                <button
+                  type="button"
+                  className="text-xs text-accent"
+                  onClick={() => go('receipts')}
+                >
+                  Receipts
+                </button>
+              }
+            >
+              {(receipts.data ?? []).length === 0 ? (
+                <div className="p-3 text-sm text-muted">No receipts exported or imported yet.</div>
+              ) : (
+                <ul className="divide-y divide-line text-sm">
+                  {(receipts.data ?? []).slice(0, 6).map((r) => (
+                    <li key={r.id} className="flex items-center gap-2 px-3 py-1.5">
+                      <Badge>{r.imported ? 'imported' : 'exported'}</Badge>
+                      <span className="min-w-0 flex-1 truncate font-medium">{r.projectName}</span>
+                      <span className="text-xs text-muted">{since(r.createdAt)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
           </div>
         )}
 

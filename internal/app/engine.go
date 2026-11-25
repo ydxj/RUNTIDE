@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/runtide/runtide/internal/version"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,9 +29,6 @@ import (
 	"github.com/runtide/runtide/internal/workspaces"
 )
 
-// Version is injected at build time with -ldflags.
-var Version = "0.2.0-dev"
-
 // Settings are persisted user preferences.
 type Settings struct {
 	Theme            string   `json:"theme"` // light | dark | system
@@ -50,13 +48,18 @@ type Settings struct {
 	StopOnExit       bool     `json:"stopServicesOnExit"`
 	// TrustedKeys are receipt-signing key fingerprints (16 hex chars) the user trusts.
 	TrustedKeys []string `json:"trustedKeys"`
+	// Execution evidence limits. ExecRetentionDays 0 keeps executions forever
+	// (the default: RUNTIDE never deletes evidence unless asked to).
+	ExecRetentionDays int `json:"execRetentionDays"`
+	ExecMaxOutputMB   int `json:"execMaxOutputMB"` // stored output per command
+	ExecMaxEvents     int `json:"execMaxEvents"`   // events per execution
 }
 
 // DefaultSettings returns documented defaults.
 func DefaultSettings() Settings {
 	return Settings{Theme: "light", RefreshSec: 3, SampleSec: 2, LogMemoryLines: 5000, LogRetentionDays: 7,
 		LogMaxRows: 200000, Redaction: true, ActivityDays: 30, HealthDays: 14, HistoryDays: 90,
-		MinimizeToTray: true, Notifications: true, StopOnExit: true}
+		MinimizeToTray: true, Notifications: true, StopOnExit: true, ExecMaxOutputMB: 8, ExecMaxEvents: 100000}
 }
 
 func (s Settings) validate() error {
@@ -74,6 +77,8 @@ func (s Settings) validate() error {
 		in(s.LogMemoryLines, 100, 100000, "logMemoryLines"), in(s.LogRetentionDays, 1, 365, "logRetentionDays"),
 		in(s.LogMaxRows, 1000, 5000000, "logMaxRows"), in(s.ActivityDays, 1, 365, "activityDays"),
 		in(s.HealthDays, 1, 365, "healthDays"), in(s.HistoryDays, 1, 730, "historyDays"),
+		in(s.ExecRetentionDays, 0, 3650, "execRetentionDays"), in(s.ExecMaxOutputMB, 1, 256, "execMaxOutputMB"),
+		in(s.ExecMaxEvents, 1000, 1000000, "execMaxEvents"),
 	} {
 		if c != nil {
 			return c
@@ -163,7 +168,11 @@ func New(opts Options) (*Engine, error) {
 	e.Res = resources.NewSampler(900, time.Duration(e.set.SampleSec)*time.Second)
 	e.WS = workspaces.NewManager(db, e.Sup)
 	e.Store = store.New(db.DB)
-	e.Exec = execution.NewManager(e.Store, execution.NewRecorder(e.Store, e.redactor(e.set), e.Publish), e.Sup, e.Hub, home, Version)
+	e.Exec = execution.NewManager(e.Store, execution.NewRecorder(e.Store, e.redactor(e.set), e.Publish), e.Sup, e.Hub, home, version.Version)
+	e.applyExecLimits(e.set)
+	if n, err := e.Store.PurgePhantomReceipts(paths.BackupDir(home)); err == nil && n > 0 {
+		e.activity("receipts-cleaned", "", fmt.Sprintf("removed %d leftover entries from comparisons made by an older version", n), "info")
+	}
 	e.Sup.OnEvent(e.Exec.HandleSupervisorEvent)
 	if ids, err := e.Exec.Recover(); err == nil {
 		for _, id := range ids {
@@ -225,8 +234,21 @@ func (e *Engine) SetSettings(s Settings) error {
 	e.mu.Unlock()
 	e.Hub.SetRedactor(e.redactor(s))
 	e.Exec.Rec.Red = e.redactor(s)
+	e.applyExecLimits(s)
 	e.Res.SetInterval(time.Duration(s.SampleSec) * time.Second)
 	return nil
+}
+
+func (e *Engine) applyExecLimits(s Settings) {
+	e.Exec.Rec.SetLimits(execution.Limits{MaxCommandOutputBytes: int64(s.ExecMaxOutputMB) << 20, MaxEvents: int64(s.ExecMaxEvents)})
+}
+
+// PruneExecutions removes ended executions older than days (dryRun counts only).
+func (e *Engine) PruneExecutions(days int, dryRun bool) (int64, error) {
+	if days < 1 {
+		return 0, errors.New("days must be at least 1")
+	}
+	return e.Store.PruneExecutions(time.Now().Add(-time.Duration(days)*24*time.Hour), dryRun)
 }
 
 // Subscribe returns a channel of events and a cancel function.
@@ -294,6 +316,9 @@ func (e *Engine) retentionLoop() {
 		s := e.Settings()
 		_, _ = e.DB.Prune(database.Retention{LogDays: s.LogRetentionDays, LogMaxRows: s.LogMaxRows,
 			ActivityDays: s.ActivityDays, HealthDays: s.HealthDays, RunDays: s.HistoryDays, HistoryDays: s.HistoryDays})
+		if s.ExecRetentionDays > 0 {
+			_, _ = e.PruneExecutions(s.ExecRetentionDays, false)
+		}
 	}
 	run()
 	t := time.NewTicker(time.Hour)

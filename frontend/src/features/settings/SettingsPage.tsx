@@ -24,8 +24,10 @@ export function SettingsPage() {
   const setSettings = useUI((s) => s.setSettings)
   const ask = useUI((s) => s.ask)
   const toast = useUI((s) => s.toast)
+  const go = useUI((s) => s.go)
   const db = usePoll(() => call<DbInfo>('db.info'), [], 0)
   const [patterns, setPatterns] = useState((settings?.extraRedaction ?? []).join('\n'))
+  const [pruneDays, setPruneDays] = useState(90)
 
   const update = async (patch: Partial<Settings>) => {
     try {
@@ -50,6 +52,41 @@ export function SettingsPage() {
       }}
     />
   )
+
+  const pruneOld = async () => {
+    try {
+      const n = await call<{ executions: number }>('runs.prune', {
+        days: pruneDays,
+        dryRun: true,
+      })
+      if (n.executions === 0) {
+        toast({ kind: 'info', title: `No executions ended more than ${pruneDays} days ago` })
+        return
+      }
+      ask({
+        title: `Delete ${n.executions} recorded execution(s)?`,
+        danger: true,
+        confirmLabel: 'Delete executions',
+        body: (
+          <p>
+            Executions that ended more than {pruneDays} days ago lose their recorded events, output,
+            file changes and verification results. Receipt files you exported are kept. This cannot
+            be undone.
+          </p>
+        ),
+        onConfirm: async () => {
+          try {
+            const r = await call<{ executions: number }>('runs.prune', { days: pruneDays })
+            toast({ kind: 'success', title: `Deleted ${r.executions} execution(s)` })
+          } catch (e) {
+            reportError('Could not delete executions', e)
+          }
+        },
+      })
+    } catch (e) {
+      reportError('Could not count executions', e)
+    }
+  }
 
   const backup = async () => {
     try {
@@ -150,6 +187,62 @@ export function SettingsPage() {
               className="mt-1 w-full rounded-md border border-line bg-surface p-2 font-mono text-xs"
             />
           </div>
+        </Panel>
+        <Panel title="Execution evidence">
+          <Row
+            title="Keep executions for (days)"
+            hint="0 keeps every execution forever (the default). Otherwise ended executions older than this are deleted hourly. Exported receipts are never deleted."
+          >
+            {num('execRetentionDays', 0, 3650)}
+          </Row>
+          <Row
+            title="Stored output per command (MB)"
+            hint="Output beyond this is counted but not stored, and the command is marked truncated."
+          >
+            {num('execMaxOutputMB', 1, 256)}
+          </Row>
+          <Row
+            title="Events per execution"
+            hint="Further events are not stored; the timeline says so once."
+          >
+            {num('execMaxEvents', 1000, 1000000)}
+          </Row>
+          <div className="flex items-center gap-2 border-t border-line p-3 text-sm">
+            <span>Delete executions that ended more than</span>
+            <Input
+              type="number"
+              aria-label="Days"
+              className="w-20"
+              min={1}
+              max={3650}
+              value={pruneDays}
+              onChange={(e) => setPruneDays(Number(e.target.value))}
+            />
+            <span>days ago</span>
+            <Button variant="danger" onClick={() => void pruneOld()}>
+              Review and delete…
+            </Button>
+          </div>
+        </Panel>
+        <Panel title="Security, MCP and server">
+          <Row
+            title="Receipt signing and trusted signers"
+            hint="Create a signing key and choose which signer fingerprints you trust."
+          >
+            <Button onClick={() => go('integrations')}>Open Integrations</Button>
+          </Row>
+          <Row
+            title="MCP server for coding agents"
+            hint="Choose the permission level and copy the registration command. Agents can never approve commands."
+          >
+            <Button onClick={() => go('integrations')}>Open Integrations</Button>
+          </Row>
+          <Row
+            title="Self-hosted server"
+            hint="How to start the receipt server and push receipts to it. The server never executes commands."
+          >
+            <Button onClick={() => go('integrations')}>Open Integrations</Button>
+          </Row>
         </Panel>
         <Panel title="Windows integration">
           <Row
